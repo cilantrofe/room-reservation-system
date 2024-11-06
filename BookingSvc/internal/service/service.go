@@ -17,8 +17,8 @@ func (b *BookingService) GetBookingsByUserID(ctx context.Context, userID int) ([
 	return b.service.GetBookingsByUserID(ctx, userID)
 }
 
-func (b *BookingService) GetBooking(ctx context.Context, id int) (*models.Booking, error) {
-	return b.service.GetBooking(ctx, id)
+func (b *BookingService) GetBookingsByHotelID(ctx context.Context, id int) (*models.Booking, error) {
+	return b.service.GetBookingsByHotelID(ctx, id)
 }
 
 func (b *BookingService) CreateBooking(ctx context.Context, booking *models.Booking) error {

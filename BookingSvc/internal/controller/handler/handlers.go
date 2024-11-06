@@ -17,16 +17,31 @@ func NewBookingHandler(b *service.BookingService) *BookingHandler {
 	return &BookingHandler{b}
 }
 
-func (b *BookingHandler) GetBookingByUserId(w http.ResponseWriter, r *http.Request) {
+func (b *BookingHandler) GetBookingByUserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userIdStr := r.URL.Query().Get("user_id")
-	userId, err := strconv.Atoi(userIdStr)
+	userId, err := strconv.Atoi(r.URL.Query().Get("user_id"))
 	if err != nil {
-		fmt.Println(userIdStr)
+		fmt.Println(userId)
 		http.Error(w, "Invalid user_id", http.StatusBadRequest)
 		return
 	}
 	bookings, err := b.bookingService.GetBookingsByUserID(ctx, userId)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bookings)
+}
+
+func (b *BookingHandler) GetBookingByHotelID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	hotelID, err := strconv.Atoi(r.URL.Query().Get("hotel_id"))
+	if err != nil {
+		fmt.Println(hotelID)
+		http.Error(w, "Invalid user_id", http.StatusBadRequest)
+		return
+	}
+	bookings, err := b.bookingService.GetBookingsByHotelID(ctx, hotelID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

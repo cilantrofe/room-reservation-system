@@ -10,6 +10,7 @@ func SetupRoutes(bookingService *service.BookingService) *http.ServeMux {
 
 	bookingHandler := NewBookingHandler(bookingService)
 	mux.HandleFunc("/bookings", bookingHandler.CreateBooking)
-	mux.HandleFunc("/bookings/user", bookingHandler.GetBookingByUserId)
+	mux.HandleFunc("/bookings/users", bookingHandler.GetBookingByUserID)
+
 	return mux
 }
