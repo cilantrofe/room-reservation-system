@@ -1,14 +1,21 @@
 package main
 
 import (
+	"HotelSvc/api/grpc/hotelpb"
 	handler "HotelSvc/api/http"
 	"HotelSvc/repository/postgresql"
 	"HotelSvc/service"
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"sync"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -35,10 +42,38 @@ func main() {
 
 	hotelService := service.NewHotelService(hotelRepo)
 
-	if err := startHTTPServer(hotelService); err != nil {
-		log.Fatalf("Failed to start HTTP server: %v", err)
-	}
+	roomRepo := postgresql.NewPostgresRoomRepository(db)
 
+	roomService := service.NewRoomService(roomRepo)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		if err := startHTTPServer(hotelService); err != nil {
+			log.Fatalf("Failed to start HTTP server: %v", err)
+		}
+	}()
+
+	// Запуск gRPC сервера в отдельной горутине
+	go func() {
+		defer wg.Done()
+		if err := startGRPCServer(roomService); err != nil {
+			log.Fatalf("Failed to start gRPC server: %v", err)
+		}
+	}()
+
+	// Ожидание завершения серверов
+	wg.Wait()
+
+	//if err := startHTTPServer(hotelService); err != nil {
+	//	log.Fatalf("Failed to start HTTP server: %v", err)
+	//}
+
+	//if err := startGRPCServer(roomService); err != nil {
+	//	log.Fatalf("Failed to start GRPC server: %v", err)
+	//}
 }
 
 // initDB инициализирует подключение к базе данных PostgreSQL
@@ -62,4 +97,36 @@ func startHTTPServer(hotelService *service.HotelService) error {
 	addr := os.Getenv("HTTP_ADDR")
 	log.Printf("Starting HTTP server on %s...", addr)
 	return http.ListenAndServe(addr, mux)
+}
+
+type server struct {
+	hotelpb.UnimplementedHotelServiceServer
+	roomService *service.RoomService
+}
+
+func (s *server) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsRequest) (*hotelpb.GetRoomsResponse, error) {
+	hotelId := req.GetHotelId()
+	rooms, err := s.roomService.GetRoomsByHotelId(int(hotelId))
+	if err != nil {
+		return nil, err
+	}
+
+	return &hotelpb.GetRoomsResponse{Rooms: rooms}, nil
+
+}
+
+func startGRPCServer(roomService *service.RoomService) error {
+	addr := os.Getenv("GRPC_ADDR")
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("Не удалось запустить сервер: %v", err)
+	}
+
+	s := grpc.NewServer()
+	hotelpb.RegisterHotelServiceServer(s, &server{roomService: roomService})
+
+	reflection.Register(s)
+
+	log.Printf("Starting GRPC server on %s", addr)
+	return s.Serve(lis)
 }
