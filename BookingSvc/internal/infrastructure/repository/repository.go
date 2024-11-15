@@ -4,12 +4,43 @@ import (
 	"BookingSvc/internal/models"
 	"context"
 	"fmt"
+	hotelSvc "github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"log"
+	"time"
 )
 
 type PostgresRepository struct {
 	db *pgxpool.Pool
+}
+
+func (r *PostgresRepository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID int, startDate, endDate time.Time) (*[]hotelSvc.Room, error) {
+	var rooms []hotelSvc.Room
+	query := `
+        SELECT room_id
+        FROM bookings
+        WHERE hotel_id = $1
+        AND room_id IN (
+            SELECT room_id
+            from bookings
+            where hotel_id = $1
+            and (start_date >= $2 or end_date < $3)
+        )
+    `
+	rows, err := r.db.Query(ctx, query, hotelID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var room hotelSvc.Room
+		if err := rows.Scan(&room.Id); err != nil {
+			return nil, err
+		}
+		rooms = append(rooms, room)
+	}
+	return &rooms, nil
 }
 
 func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
@@ -42,11 +73,10 @@ func (r *PostgresRepository) GetBookingsByUserID(ctx context.Context, userID int
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
-
 	return bookings, nil
 }
 
-func (r *PostgresRepository) GetBooking(ctx context.Context, bookingID int) (*models.Booking, error) {
+func (r *PostgresRepository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -67,7 +97,6 @@ func (r *PostgresRepository) CreateBooking(ctx context.Context, booking *models.
         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         RETURNING id
     `
-
 	var bookingID int
 	err := r.db.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status).Scan(&bookingID)
 	if err != nil {

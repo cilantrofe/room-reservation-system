@@ -6,9 +6,15 @@ import (
 	"BookingSvc/internal/service"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/joho/godotenv"
+	"golang.org/x/sync/errgroup"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -24,7 +30,19 @@ func NewApp() *App {
 
 func (a *App) Init(ctx context.Context) error {
 	//инициализация grpc, handler, роутинг, адаптеров, репозиториев, кафка, коннекторов к другим микросервисам,
-	connString := "postgres://postgres:stas7373@localhost:5433/bookingdata"
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: No .env file found")
+	}
+
+	// Получение переменных для базы данных
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+
+	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
+	//connString := "postgres://postgres:stas7373@localhost:5433/bookingdata"
 
 	pgxConn := &pgxpool.Pool{}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -43,28 +61,61 @@ func (a *App) Init(ctx context.Context) error {
 }
 
 func (a *App) Start(ctx context.Context) error {
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8080" // значение по умолчанию
+	}
+	log.Printf("Starting HTTP server on port %s", httpPort)
+
 	route := handler.SetupRoutes(a.service)
 	a.server = &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + httpPort,
 		Handler: route,
 	}
 
-	// Запуск HTTP-сервера в отдельной горутине
-	func() {
-		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("HTTP server ListenAndServe: %v", err)
-		}
-	}()
+	// Настройка graceful shutdown с использованием errgroup
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 
-	log.Println("Server started on :8080")
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	// Запуск HTTP-сервера в отдельной горутине
+	group.Go(func() error {
+		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("Error in ListenAndServe: %v", err)
+			return fmt.Errorf("failed to serve HTTP server: %w", err)
+		}
+		log.Println("HTTP server stopped")
+		return nil
+	})
+
+	// Обработка shutdown по сигналу
+	group.Go(func() error {
+		<-groupCtx.Done()
+		return a.Stop(context.Background())
+	})
+
+	// Ожидание завершения работы сервера или ошибки
+	if err := group.Wait(); err != nil {
+		log.Printf("Error after wait: %v", err)
+		return err
+	}
+
+	log.Println("Server shutdown gracefully")
 	return nil
 }
 
 func (a *App) Stop(ctx context.Context) error {
-	// Завершаем работу HTTP-сервера
-	if err := a.server.Shutdown(ctx); err != nil {
-		log.Printf("HTTP server Shutdown: %v", err)
+	// Завершение работы HTTP-сервера с graceful shutdown
+	shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	log.Println("Shutting down HTTP server...")
+	if err := a.server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
+	log.Println("HTTP server shutdown gracefully")
 
 	// Закрытие пула соединений к базе данных
 	a.dbPool.Close()
