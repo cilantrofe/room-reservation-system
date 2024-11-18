@@ -1,4 +1,4 @@
-module HotelSvc
+module github.com/Quizert/room-reservation-system/HotelSvc
 
 go 1.22.7
 

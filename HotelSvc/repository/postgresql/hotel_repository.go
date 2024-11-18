@@ -1,9 +1,10 @@
 package postgresql
 
 import (
-	"HotelSvc/models"
 	"database/sql"
 	"errors"
+
+	"github.com/Quizert/room-reservation-system/HotelSvc/models"
 )
 
 type PostgresHotelRepository struct {

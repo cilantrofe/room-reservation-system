@@ -1,8 +1,9 @@
 package postgresql
 
 import (
-	"HotelSvc/api/grpc/hotelpb"
 	"database/sql"
+
+	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 )
 
 type PostgresRoomRepository struct {

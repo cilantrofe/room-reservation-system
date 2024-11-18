@@ -1,8 +1,9 @@
 package service
 
 import (
-	"HotelSvc/models"
 	"errors"
+
+	"github.com/Quizert/room-reservation-system/HotelSvc/models"
 )
 
 type HotelRepository interface {

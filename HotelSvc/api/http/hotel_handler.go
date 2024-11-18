@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"HotelSvc/models"
-	"HotelSvc/service"
 	"encoding/json"
 	"net/http"
+
+	"github.com/Quizert/room-reservation-system/HotelSvc/models"
+	"github.com/Quizert/room-reservation-system/HotelSvc/service"
 )
 
 type HotelHandler struct {

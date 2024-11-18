@@ -1,6 +1,6 @@
 package service
 
-import "HotelSvc/api/grpc/hotelpb"
+import "github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 
 type RoomRepository interface {
 	GetRoomsByHotelId(id int) ([]*hotelpb.Room, error)

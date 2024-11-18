@@ -1,10 +1,6 @@
 package main
 
 import (
-	"HotelSvc/api/grpc/hotelpb"
-	handler "HotelSvc/api/http"
-	"HotelSvc/repository/postgresql"
-	"HotelSvc/service"
 	"context"
 	"database/sql"
 	"fmt"
@@ -13,6 +9,11 @@ import (
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
+	handler "github.com/Quizert/room-reservation-system/HotelSvc/api/http"
+	"github.com/Quizert/room-reservation-system/HotelSvc/repository/postgresql"
+	"github.com/Quizert/room-reservation-system/HotelSvc/service"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
