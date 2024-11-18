@@ -44,5 +44,8 @@ func (a *App) Init(ctx context.Context) error {
 
 func (a *App) Start(ctx context.Context) error {
 	go a.kafkaConsumer.StartConsuming(ctx)
+
+	<-ctx.Done()
+
 	return nil
 }
