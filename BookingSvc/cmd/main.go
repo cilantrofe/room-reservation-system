@@ -1,9 +1,9 @@
 package main
 
 import (
-	"BookingSvc/internal/app"
 	"context"
 	"fmt"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/app"
 )
 
 func main() {
@@ -20,5 +20,4 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-
 }

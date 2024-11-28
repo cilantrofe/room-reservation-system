@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"BookingSvc/internal/service"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
 	"net/http"
 )
 

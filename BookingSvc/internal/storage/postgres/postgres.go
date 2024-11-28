@@ -1,46 +1,15 @@
-package repository
+package postgres
 
 import (
-	"BookingSvc/internal/models"
 	"context"
 	"fmt"
-	hotelSvc "github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"log"
 	"time"
 )
 
 type PostgresRepository struct {
 	db *pgxpool.Pool
-}
-
-func (r *PostgresRepository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID int, startDate, endDate time.Time) (*[]hotelSvc.Room, error) {
-	var rooms []hotelSvc.Room
-	query := `
-        SELECT room_id
-        FROM bookings
-        WHERE hotel_id = $1
-        AND room_id IN (
-            SELECT room_id
-            from bookings
-            where hotel_id = $1
-            and (start_date >= $2 or end_date < $3)
-        )
-    `
-	rows, err := r.db.Query(ctx, query, hotelID, startDate, endDate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query bookings: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var room hotelSvc.Room
-		if err := rows.Scan(&room.Id); err != nil {
-			return nil, err
-		}
-		rooms = append(rooms, room)
-	}
-	return &rooms, nil
 }
 
 func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
@@ -49,12 +18,46 @@ func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
 	}
 }
 
+func (r *PostgresRepository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID int, startDate, endDate time.Time) (map[int]struct{}, error) {
+	unavailableRoomsID := make(map[int]struct{})
+	query := `
+        SELECT RoomID
+        FROM bookings
+        WHERE HotelID = $1
+        AND RoomID IN (
+            SELECT RoomID
+            from bookings
+            where HotelID = $1
+            and ($2 >= StartDate and $2 < EndDate) or
+                ($2 <= StartDate and $3 > StartDate)
+        );
+    `
+	rows, err := r.db.Query(ctx, query, hotelID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var roomID int
+		if err := rows.Scan(&roomID); err != nil {
+			return nil, fmt.Errorf("failed to scan room ID: %w", err)
+		}
+		unavailableRoomsID[roomID] = struct{}{}
+	}
+	// Проверка на ошибки при итерации
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+	return unavailableRoomsID, nil
+}
+
 func (r *PostgresRepository) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
 	var bookings []*models.Booking
 	query := `
-        SELECT id, user_id, room_id, hotel_id, start_date, end_date, status
+        SELECT UserID, RoomID, HotelID, StartDate, EndDate, Status
         FROM bookings
-        WHERE user_id = $1
+        WHERE UserID = $1
     `
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
@@ -64,7 +67,7 @@ func (r *PostgresRepository) GetBookingsByUserID(ctx context.Context, userID int
 
 	for rows.Next() {
 		var booking models.Booking
-		if err := rows.Scan(&booking.ID, &booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate, &booking.Status); err != nil {
+		if err := rows.Scan(&booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate, &booking.Status); err != nil {
 			return nil, fmt.Errorf("failed to scan booking: %w", err)
 		}
 		bookings = append(bookings, &booking)
@@ -93,14 +96,12 @@ func (r *PostgresRepository) DeleteBooking(ctx context.Context, bookingID int) e
 
 func (r *PostgresRepository) CreateBooking(ctx context.Context, booking *models.Booking) error {
 	query := `
-        INSERT INTO bookings (user_id, room_id, hotel_id, start_date, end_date, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-        RETURNING id
+        INSERT INTO bookings (UserID, RoomID, HotelID, StartDate, EndDate, Status, CreatedAt)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
     `
-	var bookingID int
-	err := r.db.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status).Scan(&bookingID)
+	_, err := r.db.Exec(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status)
 	if err != nil {
-		log.Fatalf("failed to create booking: %v", err)
+		return fmt.Errorf("failed to create booking: %w", err)
 	}
 	return nil
 }

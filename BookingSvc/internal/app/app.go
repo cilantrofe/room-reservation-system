@@ -1,14 +1,15 @@
 package app
 
 import (
-	"BookingSvc/internal/controller/handler"
-	"BookingSvc/internal/infrastructure/repository"
-	"BookingSvc/internal/service"
 	"context"
 	"errors"
 	"fmt"
+	grpc "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc/hotelsvc"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/kafka"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller/handler"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/storage/postgres"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"net/http"
@@ -30,49 +31,53 @@ func NewApp() *App {
 
 func (a *App) Init(ctx context.Context) error {
 	//инициализация grpc, handler, роутинг, адаптеров, репозиториев, кафка, коннекторов к другим микросервисам,
-	if err := godotenv.Load(); err != nil {
-		log.Println("Warning: No .env file found")
-	}
+	//if err := godotenv.Load(); err != nil {
+	//	log.Println("Warning: No .env file found")
+	//}
 
 	// Получение переменных для базы данных
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
+	dbHost := os.Getenv("BOOKING_DB_HOST")
+	dbPort := os.Getenv("BOOKING_DB_PORT")
+	dbUser := os.Getenv("BOOKING_DB_USER")
+	dbPassword := os.Getenv("BOOKING_DB_PASSWORD")
+	dbName := os.Getenv("BOOKING_DB_NAME")
 
 	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
-	//connString := "postgres://postgres:stas7373@localhost:5433/bookingdata"
-
-	pgxConn := &pgxpool.Pool{}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	// Подключение к базе данных с использованием pgxpool
 	pgxConn, err := pgxpool.Connect(ctx, connString)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
-
-	repo := repository.NewPostgresRepository(pgxConn)
-
-	a.service = service.NewBookingService(repo)
-	return nil
-}
-
-func (a *App) Start(ctx context.Context) error {
-	httpPort := os.Getenv("HTTP_PORT")
-	if httpPort == "" {
-		httpPort = "8080" // значение по умолчанию
+	a.dbPool = pgxConn
+	repo := postgres.NewPostgresRepository(pgxConn)
+	grpcHost := os.Getenv("BOOKING_GRPC_HOST")
+	grpcPort := os.Getenv("BOOKING_GRPC_PORT")
+	hotelClient, err := grpc.NewHotelClient(grpcHost, grpcPort)
+	if err != nil {
+		log.Fatalf("Unable to connect to hotel: %v\n", err)
 	}
-	log.Printf("Starting HTTP server on port %s", httpPort)
 
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	kafkaTopic := os.Getenv("KAFKA_TOPIC")
+
+	kafkaProducer := kafka.NewProducer(kafkaBroker, kafkaTopic)
+
+	a.service = service.NewBookingService(repo, hotelClient)
 	route := handler.SetupRoutes(a.service)
+
+	httpPort := os.Getenv("BOOKING_HTTP_PORT")
 	a.server = &http.Server{
 		Addr:    ":" + httpPort,
 		Handler: route,
 	}
+	log.Println(a)
+	return nil
+}
 
+func (a *App) Start(ctx context.Context) error {
+	log.Printf("Starting HTTP server")
 	// Настройка graceful shutdown с использованием errgroup
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
@@ -118,8 +123,12 @@ func (a *App) Stop(ctx context.Context) error {
 	log.Println("HTTP server shutdown gracefully")
 
 	// Закрытие пула соединений к базе данных
-	a.dbPool.Close()
-	log.Println("Database connection closed")
+	if a.dbPool != nil {
+		a.dbPool.Close()
+		log.Println("Database connection closed")
+	} else {
+		log.Println("Database pool is nil, skipping close")
+	}
 
 	return nil
 }
