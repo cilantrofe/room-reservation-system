@@ -1,9 +1,8 @@
 package handler
 
 import (
+	"github.com/Quizert/room-reservation-system/HotelSvc/internal/service"
 	"net/http"
-
-	"github.com/Quizert/room-reservation-system/HotelSvc/service"
 )
 
 func RegisterHotelRoutes(mux *http.ServeMux, hotelService *service.HotelService) {

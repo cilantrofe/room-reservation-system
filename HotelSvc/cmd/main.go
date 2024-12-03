@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	postgresql2 "github.com/Quizert/room-reservation-system/HotelSvc/internal/repository/postgresql"
+	service2 "github.com/Quizert/room-reservation-system/HotelSvc/internal/service"
 	"log"
 	"net"
 	"net/http"
@@ -12,20 +14,13 @@ import (
 
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	handler "github.com/Quizert/room-reservation-system/HotelSvc/api/http"
-	"github.com/Quizert/room-reservation-system/HotelSvc/repository/postgresql"
-	"github.com/Quizert/room-reservation-system/HotelSvc/service"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Printf("No .env file found")
-	}
 	db, err := initDB()
 	if err != nil {
 		log.Fatalf("Ошибка подключения к базе данных: %v\n", err)
@@ -39,13 +34,13 @@ func main() {
 	}
 	fmt.Println("Успешное подключение к базе данных!")
 
-	hotelRepo := postgresql.NewPostgresHotelRepository(db)
+	hotelRepo := postgresql2.NewPostgresHotelRepository(db)
 
-	hotelService := service.NewHotelService(hotelRepo)
+	hotelService := service2.NewHotelService(hotelRepo)
 
-	roomRepo := postgresql.NewPostgresRoomRepository(db)
+	roomRepo := postgresql2.NewPostgresRoomRepository(db)
 
-	roomService := service.NewRoomService(roomRepo)
+	roomService := service2.NewRoomService(roomRepo)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -79,11 +74,11 @@ func main() {
 
 // initDB инициализирует подключение к базе данных PostgreSQL
 func initDB() (*sql.DB, error) {
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
+	dbHost := os.Getenv("HOTEL_DB_HOST")
+	dbPort := os.Getenv("HOTEL_DB_PORT")
+	dbUser := os.Getenv("HOTEL_DB_USER")
+	dbPassword := os.Getenv("HOTEL_DB_PASSWORD")
+	dbName := os.Getenv("HOTEL_DB_NAME")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
@@ -91,18 +86,18 @@ func initDB() (*sql.DB, error) {
 }
 
 // startHTTPServer запускает HTTP сервер для обработки REST-запросов
-func startHTTPServer(hotelService *service.HotelService) error {
+func startHTTPServer(hotelService *service2.HotelService) error {
 	mux := http.NewServeMux()
 	handler.RegisterHotelRoutes(mux, hotelService)
 
-	addr := os.Getenv("HTTP_ADDR")
+	addr := ":" + os.Getenv("HOTEL_HTTP_PORT")
 	log.Printf("Starting HTTP server on %s...", addr)
 	return http.ListenAndServe(addr, mux)
 }
 
 type server struct {
 	hotelpb.UnimplementedHotelServiceServer
-	roomService *service.RoomService
+	roomService *service2.RoomService
 }
 
 func (s *server) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsRequest) (*hotelpb.GetRoomsResponse, error) {
@@ -116,8 +111,8 @@ func (s *server) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsReq
 
 }
 
-func startGRPCServer(roomService *service.RoomService) error {
-	addr := os.Getenv("GRPC_ADDR")
+func startGRPCServer(roomService *service2.RoomService) error {
+	addr := ":" + os.Getenv("HOTEL_GRPC_PORT")
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalf("Не удалось запустить сервер: %v", err)
