@@ -8,29 +8,24 @@ import (
 	"time"
 )
 
-type PostgresRepository struct {
+type Repository struct {
 	db *pgxpool.Pool
 }
 
-func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{
+func NewPostgresRepository(db *pgxpool.Pool) *Repository {
+	return &Repository{
 		db: db,
 	}
 }
 
-func (r *PostgresRepository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID int, startDate, endDate time.Time) (map[int]struct{}, error) {
+func (r *Repository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID int, startDate, endDate time.Time) (map[int]struct{}, error) {
 	unavailableRoomsID := make(map[int]struct{})
 	query := `
-        SELECT RoomID
-        FROM bookings
-        WHERE HotelID = $1
-        AND RoomID IN (
-            SELECT RoomID
-            from bookings
-            where HotelID = $1
-            and ($2 >= StartDate and $2 < EndDate) or
-                ($2 <= StartDate and $3 > StartDate)
-        );
+		SELECT RoomID
+		from bookings
+		where HotelID = $1
+		and ($2 >= StartDate and $2 < EndDate) or
+			($2 <= StartDate and $3 > StartDate);
     `
 	rows, err := r.db.Query(ctx, query, hotelID, startDate, endDate)
 	if err != nil {
@@ -52,8 +47,8 @@ func (r *PostgresRepository) GetUnavailableRoomsByHotelId(ctx context.Context, h
 	return unavailableRoomsID, nil
 }
 
-func (r *PostgresRepository) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
-	var bookings []*models.Booking
+func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
+	bookings := make([]*models.Booking, 0)
 	query := `
         SELECT UserID, RoomID, HotelID, StartDate, EndDate, Status
         FROM bookings
@@ -79,22 +74,22 @@ func (r *PostgresRepository) GetBookingsByUserID(ctx context.Context, userID int
 	return bookings, nil
 }
 
-func (r *PostgresRepository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
+func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (r *PostgresRepository) UpdateBooking(ctx context.Context, booking *models.Booking) error {
+func (r *Repository) UpdateBooking(ctx context.Context, booking *models.Booking) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (r *PostgresRepository) DeleteBooking(ctx context.Context, bookingID int) error {
+func (r *Repository) DeleteBooking(ctx context.Context, bookingID int) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (r *PostgresRepository) CreateBooking(ctx context.Context, booking *models.Booking) error {
+func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking) error {
 	query := `
         INSERT INTO bookings (UserID, RoomID, HotelID, StartDate, EndDate, Status, CreatedAt)
         VALUES ($1, $2, $3, $4, $5, $6, NOW())

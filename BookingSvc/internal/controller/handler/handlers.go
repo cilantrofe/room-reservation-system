@@ -51,7 +51,6 @@ func (b *BookingHandler) GetAvailableRooms(w http.ResponseWriter, r *http.Reques
 		http.Error(w, fmt.Sprintf("Invalid start_date: %v", err), http.StatusBadRequest)
 		return
 	}
-
 	// Парсим end_date
 	endDate, err := time.Parse(time.RFC3339, endDateStr)
 	if err != nil {
@@ -89,13 +88,13 @@ func (b *BookingHandler) GetBookingByHotelID(w http.ResponseWriter, r *http.Requ
 
 func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var booking models.Booking
-	if err := json.NewDecoder(r.Body).Decode(&booking); err != nil {
+	var bookingRequest models.BookingRequest
+	if err := json.NewDecoder(r.Body).Decode(&bookingRequest); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest) //err.Error() - исправить
 		return
 	}
 
-	if err := b.bookingService.CreateBooking(ctx, &booking); err != nil {
+	if err := b.bookingService.CreateBooking(ctx, &bookingRequest); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

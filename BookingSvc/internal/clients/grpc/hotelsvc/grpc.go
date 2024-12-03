@@ -22,5 +22,8 @@ func NewHotelClient(grpcHost, grpcPort string) (*HotelSvcClient, error) {
 }
 
 func (c *HotelSvcClient) Close() {
-	c.conn.Close()
+	err := c.conn.Close()
+	if err != nil {
+		fmt.Errorf("could not close connection: %w", err)
+	}
 }

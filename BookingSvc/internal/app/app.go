@@ -62,9 +62,9 @@ func (a *App) Init(ctx context.Context) error {
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
 
-	kafkaProducer := kafka.NewProducer(kafkaBroker, kafkaTopic)
+	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, kafkaTopic)
 
-	a.service = service.NewBookingService(repo, hotelClient)
+	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient)
 	route := handler.SetupRoutes(a.service)
 
 	httpPort := os.Getenv("BOOKING_HTTP_PORT")

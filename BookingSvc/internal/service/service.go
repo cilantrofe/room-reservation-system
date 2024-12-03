@@ -29,13 +29,17 @@ func (b *BookingService) GetBookingsByHotelID(ctx context.Context, id int) (*mod
 	return b.storage.GetBookingsByHotelID(ctx, id)
 }
 
-func (b *BookingService) CreateBooking(ctx context.Context, booking *models.Booking) error {
+func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
 	// Тут МБ валидация
+	booking := bookingRequest.ToBooking()
 	err := b.storage.CreateBooking(ctx, booking)
+
 	if err != nil {
 		return fmt.Errorf("error in CreateBooking: %w", err)
 	}
-	kafkaMessageJSON, err := json.Marshal(booking)
+
+	bookingMessage := bookingRequest.ToBookingMessage()
+	kafkaMessageJSON, err := json.Marshal(bookingMessage)
 	if err != nil {
 		return fmt.Errorf("error in Marshal json: %w", err)
 	}
@@ -43,19 +47,20 @@ func (b *BookingService) CreateBooking(ctx context.Context, booking *models.Book
 	if err != nil {
 		log.Printf("Failed to send Kafka message: %v", err)
 	}
+
 	return nil
 }
 
 func (b *BookingService) UpdateBooking(ctx context.Context, booking *models.Booking) error {
 	return b.storage.UpdateBooking(ctx, booking)
 }
+
 func (b *BookingService) DeleteBooking(ctx context.Context, id int) error {
 	return b.storage.DeleteBooking(ctx, id)
 }
 
 func (b *BookingService) GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error) {
 	request := hotelpb.GetRoomsRequest{HotelId: int32(hotelID)}
-
 	allRooms, err := b.hotelSvcGrpcClient.Api.GetRoomsByHotelId(ctx, &request)
 	if err != nil {
 		return nil, fmt.Errorf("error in gRPC request GetRoomsByHotelID: %v", err)
@@ -72,6 +77,5 @@ func (b *BookingService) GetAvailableRooms(ctx context.Context, hotelID int, sta
 			availableRooms = append(availableRooms, room)
 		}
 	}
-
 	return availableRooms, nil
 }
