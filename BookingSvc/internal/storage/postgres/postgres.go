@@ -1,0 +1,102 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"time"
+)
+
+type Repository struct {
+	db *pgxpool.Pool
+}
+
+func NewPostgresRepository(db *pgxpool.Pool) *Repository {
+	return &Repository{
+		db: db,
+	}
+}
+
+func (r *Repository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID int, startDate, endDate time.Time) (map[int]struct{}, error) {
+	unavailableRoomsID := make(map[int]struct{})
+	query := `
+		SELECT RoomID
+		from bookings
+		where HotelID = $1
+		and ($2 >= StartDate and $2 < EndDate) or
+			($2 <= StartDate and $3 > StartDate);
+    `
+	rows, err := r.db.Query(ctx, query, hotelID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var roomID int
+		if err := rows.Scan(&roomID); err != nil {
+			return nil, fmt.Errorf("failed to scan room ID: %w", err)
+		}
+		unavailableRoomsID[roomID] = struct{}{}
+	}
+	// Проверка на ошибки при итерации
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+	return unavailableRoomsID, nil
+}
+
+func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
+	bookings := make([]*models.Booking, 0)
+	query := `
+        SELECT UserID, RoomID, HotelID, StartDate, EndDate, Status
+        FROM bookings
+        WHERE UserID = $1
+    `
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var booking models.Booking
+		if err := rows.Scan(&booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate, &booking.Status); err != nil {
+			return nil, fmt.Errorf("failed to scan booking: %w", err)
+		}
+		bookings = append(bookings, &booking)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+	return bookings, nil
+}
+
+func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (r *Repository) UpdateBooking(ctx context.Context, booking *models.Booking) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (r *Repository) DeleteBooking(ctx context.Context, bookingID int) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking) error {
+	query := `
+        INSERT INTO bookings (UserID, RoomID, HotelID, StartDate, EndDate, Status, CreatedAt)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `
+	_, err := r.db.Exec(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status)
+	if err != nil {
+		return fmt.Errorf("failed to create booking: %w", err)
+	}
+	return nil
+}
