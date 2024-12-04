@@ -73,6 +73,17 @@ services:
     networks:
       - app-network
 
+  payment-system:
+    build:
+      context: ./PaymentSystem
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8082:8080"
+    networks:
+      - app-network
+
 volumes:
   booking-db-data:
   hotel-db-data:
