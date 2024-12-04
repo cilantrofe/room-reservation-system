@@ -3,8 +3,10 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -95,8 +97,23 @@ func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := b.bookingService.CreateBooking(ctx, &bookingRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError) //Тут добавить обработку: бронирвание уже существует error
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (b *BookingHandler) HandlePaymentWebHook(w http.ResponseWriter, r *http.Request) {
+	//ctx := r.Context()
+	var paymentResponse paymentClient.Response
+	if err := json.NewDecoder(r.Body).Decode(&paymentResponse); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest) //err.Error() - исправить
+		return
+	}
+
+	log.Printf("PaymentResponse: %v, %s", paymentResponse.BookingID, paymentResponse.Status)
+
+	log.Println("БЛЯТЬ ПРИВЕТ Я ПРИШЕЛ")
+	w.WriteHeader(http.StatusCreated)
+
 }

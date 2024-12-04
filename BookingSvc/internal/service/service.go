@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc/hotelsvc"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"log"
@@ -12,13 +13,41 @@ import (
 )
 
 type BookingService struct {
-	storage            Storage
-	messageProducer    MessageProducer
-	hotelSvcGrpcClient *grpc.HotelSvcClient
+	storage             Storage
+	messageProducer     MessageProducer
+	hotelSvcGrpcClient  *grpc.HotelSvcClient
+	paymentSystemClient *paymentsvc.Client
 }
 
-func NewBookingService(db Storage, producer MessageProducer, client *grpc.HotelSvcClient) *BookingService {
-	return &BookingService{db, producer, client}
+func NewBookingService(db Storage, producer MessageProducer, hotelClient *grpc.HotelSvcClient, paymentClient *paymentsvc.Client) *BookingService {
+	return &BookingService{db, producer, hotelClient, paymentClient}
+}
+
+func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
+	// Тут МБ валидация
+	booking := bookingRequest.ToBooking()
+
+	bookingID, err := b.storage.CreateBooking(ctx, booking)
+	if err != nil {
+		return fmt.Errorf("error in CreateBooking: %w", err)
+	}
+	go func() {
+		ctxWithCancel, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		b.paymentSystemClient.CreatePaymentRequest(ctxWithCancel, bookingRequest.CardNumber, bookingRequest.Amount, bookingID)
+	}()
+	bookingMessage := bookingRequest.ToBookingMessage()
+	kafkaMessageJSON, err := json.Marshal(bookingMessage)
+	if err != nil {
+		return fmt.Errorf("error in Marshal json: %w", err)
+	}
+
+	err = b.messageProducer.SendMessage(ctx, kafkaMessageJSON)
+	if err != nil {
+		log.Printf("Failed to send Kafka message: %v", err)
+	}
+
+	return nil
 }
 
 func (b *BookingService) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
@@ -27,28 +56,6 @@ func (b *BookingService) GetBookingsByUserID(ctx context.Context, userID int) ([
 
 func (b *BookingService) GetBookingsByHotelID(ctx context.Context, id int) (*models.Booking, error) {
 	return b.storage.GetBookingsByHotelID(ctx, id)
-}
-
-func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
-	// Тут МБ валидация
-	booking := bookingRequest.ToBooking()
-	err := b.storage.CreateBooking(ctx, booking)
-
-	if err != nil {
-		return fmt.Errorf("error in CreateBooking: %w", err)
-	}
-
-	bookingMessage := bookingRequest.ToBookingMessage()
-	kafkaMessageJSON, err := json.Marshal(bookingMessage)
-	if err != nil {
-		return fmt.Errorf("error in Marshal json: %w", err)
-	}
-	err = b.messageProducer.SendMessage(ctx, kafkaMessageJSON)
-	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
-	}
-
-	return nil
 }
 
 func (b *BookingService) UpdateBooking(ctx context.Context, booking *models.Booking) error {

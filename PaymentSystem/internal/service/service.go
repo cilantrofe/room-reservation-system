@@ -41,7 +41,7 @@ func (p *PaymentService) sendWebHook(ctx context.Context, url string, paymentRes
 }
 
 func (p *PaymentService) ProcessPayment(ctx context.Context, req *models.PaymentRequest) error {
-	time.Sleep(5 * time.Second) // Имитация обратки платежа, связь с банком и т.д.
+	time.Sleep(15 * time.Second) // Имитация обратки платежа, связь с банком и т.д.
 	paymentResponse := &models.PaymentResponse{
 		BookingID: req.BookingID,
 		Status:    "success",

@@ -15,7 +15,9 @@ type BookingRequest struct {
 	RoomNumber      int    `json:"room_number"`
 	UserName        string `json:"user_name"`
 	ChatId          int    `json:"chat_id"`
-	//TODO:: добавить поля для оплаты.
+
+	CardNumber string `json:"card_number"`
+	Amount     int    `json:"amount"`
 }
 
 type BookingMessage struct {
