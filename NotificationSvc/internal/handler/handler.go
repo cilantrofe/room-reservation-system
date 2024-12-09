@@ -16,6 +16,8 @@ type BookingEvent struct {
 	HotelName       string `json:"hotel_name"`
 	RoomDescription string `json:"room_description"`
 	RoomNumber      int    `json:"room_number"`
+	StartDate       string `json:"start_date"`
+	EndDate         string `json:"end_date"`
 	UserName        string `json:"user_name"`
 	ChatId          string `json:"chat_id"`
 }
@@ -43,12 +45,13 @@ func (h *NotificationHandler) handleHotelBookingEvent(ctx context.Context, messa
 
 	notificationMessage := fmt.Sprintf(
 		"Новое бронирование отеля:\n"+
-			"ID бронирования: %d\n"+
 			"Название отеля: %s\n"+
 			"Описание номера: %s\n"+
 			"Номер комнаты: %d\n"+
+			"Дата заезда: %s\n"+
+			"Дата выезда: %s\n"+
 			"Имя гостя: %s\n",
-		event.BookingID, event.HotelName, event.RoomDescription, event.RoomNumber, event.UserName,
+		event.HotelName, event.RoomDescription, event.RoomNumber, event.StartDate, event.EndDate, event.UserName,
 	)
 
 	h.notificationService.SendNotification(notificationMessage, chatId)
@@ -67,13 +70,14 @@ func (h *NotificationHandler) handleClientBookingEvent(ctx context.Context, mess
 
 	notificationMessage := fmt.Sprintf(
 		"%s, у Вас новое бронирование отеля.\nОзнакомьтесь с информацией ниже:\n"+
-			"ID бронирования: %d\n"+
 			"Название отеля: %s\n"+
 			"Описание номера: %s\n"+
-			"Номер комнаты: %d\n",
-		event.UserName, event.BookingID, event.HotelName, event.RoomDescription, event.RoomNumber,
+			"Номер комнаты: %d\n"+
+			"Дата заезда: %s\n"+
+			"Дата выезда: %s\n",
+		event.UserName, event.HotelName, event.RoomDescription, event.RoomNumber, event.StartDate, event.EndDate,
 	)
-	
+
 	h.notificationService.SendNotification(notificationMessage, chatId)
 }
 
