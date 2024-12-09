@@ -10,23 +10,21 @@ import (
 type TelegramNotifier struct {
 	// Экземпляр Telegram Bot API
 	bot *tgbotapi.BotAPI
-	// Идентификатор чата, куда отправляются уведомления
-	chatID int64
 }
 
-func NewTelegramNotifier(token string, chatID int64) (*TelegramNotifier, error) {
+func NewTelegramNotifier(token string) (*TelegramNotifier, error) {
 	// Создание экземпляра Telegram Bot API по токену
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, err
 	}
 
-	return &TelegramNotifier{bot: bot, chatID: chatID}, nil
+	return &TelegramNotifier{bot: bot}, nil
 }
 
-func (t *TelegramNotifier) SendNotification(message string) error {
+func (t *TelegramNotifier) SendNotification(message string, chatID int64) error {
 	// Создаение сообщения
-	msg := tgbotapi.NewMessage(t.chatID, message)
+	msg := tgbotapi.NewMessage(chatID, message)
 
 	// Отправка сообщения
 	_, err := t.bot.Send(msg)

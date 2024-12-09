@@ -13,6 +13,6 @@ func NewNotificationService(notifier *delivery.TelegramNotifier) *NotificationSe
 }
 
 // Наконец-то добираемся до отправки сообщения через Telegram
-func (s *NotificationService) SendNotification(message string) error {
-	return s.notifier.SendNotification(message)
+func (s *NotificationService) SendNotification(message string, chatID int64) error {
+	return s.notifier.SendNotification(message, chatID)
 }
