@@ -64,8 +64,8 @@ func (a *App) Init(ctx context.Context) error {
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
 	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, kafkaTopic)
 
-	paymentClient := paymentClient.NewPaymentSvcClient("http://payment-system:8080/payment")
-	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient, paymentClient)
+	paymentSvcClient := paymentClient.NewPaymentSvcClient("http://payment-system:8080/payment")
+	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient, paymentSvcClient)
 	bookingHandler := handler.NewBookingHandler(a.service)
 	route := handler.SetupRoutes(bookingHandler)
 

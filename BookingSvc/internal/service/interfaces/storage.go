@@ -1,4 +1,4 @@
-package service
+package interfaces
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source=storage.go -destination=mocks/storage_mock.go -package=mocks
 type Storage interface {
 	CreateBooking(ctx context.Context, booking *models.Booking) (int, error)
 	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error)

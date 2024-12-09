@@ -1,14 +1,19 @@
 package grpc
 
 import (
+	"context"
 	"fmt"
-	hotelSvc "github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
+	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"google.golang.org/grpc"
 )
 
 type HotelSvcClient struct {
-	Api  hotelSvc.HotelServiceClient
+	Api  hotelpb.HotelServiceClient
 	conn *grpc.ClientConn
+}
+
+func (c *HotelSvcClient) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsRequest) (*hotelpb.GetRoomsResponse, error) {
+	return c.Api.GetRoomsByHotelId(ctx, req)
 }
 
 func NewHotelClient(grpcHost, grpcPort string) (*HotelSvcClient, error) {
@@ -17,7 +22,7 @@ func NewHotelClient(grpcHost, grpcPort string) (*HotelSvcClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not connect: %w", err)
 	}
-	client := hotelSvc.NewHotelServiceClient(conn)
+	client := hotelpb.NewHotelServiceClient(conn)
 	return &HotelSvcClient{Api: client, conn: conn}, nil
 }
 
