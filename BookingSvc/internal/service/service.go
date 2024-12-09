@@ -31,22 +31,14 @@ func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *mode
 	if err != nil {
 		return fmt.Errorf("error in CreateBooking: %w", err)
 	}
-	go func() {
-		ctxWithCancel, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		b.paymentSystemClient.CreatePaymentRequest(ctxWithCancel, bookingRequest.CardNumber, bookingRequest.Amount, bookingID)
-	}()
-	bookingMessage := bookingRequest.ToBookingMessage()
-	kafkaMessageJSON, err := json.Marshal(bookingMessage)
-	if err != nil {
-		return fmt.Errorf("error in Marshal json: %w", err)
-	}
 
-	err = b.messageProducer.SendMessage(ctx, kafkaMessageJSON)
-	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
-	}
+	bookingMessage := bookingRequest.ToBookingMessage(bookingID)
+	paymentRequest := paymentsvc.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
 
+	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
+	if err != nil {
+		return fmt.Errorf("error in payment request: %w", err)
+	}
 	return nil
 }
 
@@ -58,8 +50,38 @@ func (b *BookingService) GetBookingsByHotelID(ctx context.Context, id int) (*mod
 	return b.storage.GetBookingsByHotelID(ctx, id)
 }
 
-func (b *BookingService) UpdateBooking(ctx context.Context, booking *models.Booking) error {
-	return b.storage.UpdateBooking(ctx, booking)
+func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string, bookingMessage *models.BookingMessage) error {
+	err := b.storage.UpdateBookingStatus(ctx, status, bookingMessage.BookingID)
+	if err != nil {
+		return fmt.Errorf("error in UpdateBookingStatus: %w", err)
+	}
+
+	switch status {
+	case "success":
+		kafkaUserMessage, err := json.Marshal(bookingMessage)
+		if err != nil {
+			return fmt.Errorf("error in Marshal KafkaUserMessage: %w", err)
+		}
+		err = b.messageProducer.SendMessage(ctx, kafkaUserMessage)
+		if err != nil {
+			return fmt.Errorf("error in SendMessage: %w", err)
+		}
+
+		hotelierMessage := bookingMessage.ToHotelierMessage("hotelier name", "123123")
+
+		kafkaHotelierMessage, err := json.Marshal(hotelierMessage)
+		if err != nil {
+			return fmt.Errorf("error in Marshal KafkaHotelierMessage: %w", err)
+		}
+		err = b.messageProducer.SendMessage(ctx, kafkaHotelierMessage)
+		if err != nil {
+			return fmt.Errorf("error in SendMessage: %w", err)
+		}
+
+	case "fail":
+		log.Println("failed")
+	}
+	return nil
 }
 
 func (b *BookingService) DeleteBooking(ctx context.Context, id int) error {

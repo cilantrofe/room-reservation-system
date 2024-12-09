@@ -62,8 +62,8 @@ func (a *App) Init(ctx context.Context) error {
 
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
-
 	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, kafkaTopic)
+
 	paymentClient := paymentClient.NewPaymentSvcClient("http://payment-system:8080/payment")
 	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient, paymentClient)
 	bookingHandler := handler.NewBookingHandler(a.service)

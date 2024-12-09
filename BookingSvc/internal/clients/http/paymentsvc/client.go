@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"log"
 	"net/http"
 	"strconv"
@@ -18,13 +20,25 @@ type Client struct {
 type Request struct {
 	CardNumber string `json:"card_number"`
 	Amount     int    `json:"amount"`
-	BookingID  int    `json:"booking_id"`
 	WebHookURL string `json:"web_hook_url"`
+
+	MetaData *models.BookingMessage `json:"meta_data"` //Это в meta data
 }
 
 type Response struct {
-	BookingID int    `json:"booking_id"`
-	Status    string `json:"status"`
+	Status string `json:"status"`
+
+	MetaData *models.BookingMessage `json:"meta_data"` //Это в meta data
+}
+
+func ToPaymentRequest(bookingMessage *models.BookingMessage, cardNumber string, amount int) *Request {
+	return &Request{
+		CardNumber: cardNumber,
+		Amount:     amount,
+		WebHookURL: "http://booking-service:8080/bookings/payment/response?booking_id=" + strconv.Itoa(bookingMessage.BookingID),
+
+		MetaData: bookingMessage,
+	}
 }
 
 func NewPaymentSvcClient(baseUrl string) *Client {
@@ -34,31 +48,25 @@ func NewPaymentSvcClient(baseUrl string) *Client {
 	}
 }
 
-func (c *Client) CreatePaymentRequest(ctx context.Context, cardNumber string, amount int, bookingID int) {
-	if c.client == nil {
-		log.Fatal("HTTP client is nil")
-		return
-	}
-	log.Println(c.baseUrl, "DADADADADADADA", c.client, "CONTEXT", ctx)
-	paymentRequest := Request{
-		CardNumber: cardNumber,
-		Amount:     amount,
-		BookingID:  bookingID,
-		WebHookURL: "http://booking-service:8080/bookings/payment/response?booking_id=" + strconv.Itoa(bookingID),
-	}
+func (c *Client) CreatePaymentRequest(ctx context.Context, paymentRequest *Request) error {
 	jsonRequest, err := json.Marshal(paymentRequest)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("err in marshaling json: %w", err)
 	}
 	log.Println("JSON Request: ", string(jsonRequest))
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseUrl, bytes.NewBuffer(jsonRequest))
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("err in creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("err in sending request: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("err in payment service status: %s", resp.Status)
+	}
+	return nil
 }

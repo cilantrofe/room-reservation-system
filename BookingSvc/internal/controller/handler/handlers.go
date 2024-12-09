@@ -104,16 +104,24 @@ func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 }
 
 func (b *BookingHandler) HandlePaymentWebHook(w http.ResponseWriter, r *http.Request) {
-	//ctx := r.Context()
+	ctx := r.Context()
 	var paymentResponse paymentClient.Response
 	if err := json.NewDecoder(r.Body).Decode(&paymentResponse); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest) //err.Error() - исправить
+		http.Error(w, "invalid request", http.StatusBadRequest) //err.Error() - исправить
 		return
 	}
+	log.Println(paymentResponse)
+	err := b.bookingService.UpdateBookingStatus(ctx, paymentResponse.Status, paymentResponse.MetaData)
 
-	log.Printf("PaymentResponse: %v, %s", paymentResponse.BookingID, paymentResponse.Status)
+	switch paymentResponse.Status {
+	case "success":
+		if err != nil {
+			log.Println("handler UpdateBookingStatusSuccess: ", err.Error())
+			http.Error(w, "internal server error", http.StatusInternalServerError) //err.Error() - исправить
+			return
+		}
 
-	log.Println("БЛЯТЬ ПРИВЕТ Я ПРИШЕЛ")
-	w.WriteHeader(http.StatusCreated)
-
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("success booking!"))
+	}
 }

@@ -3,11 +3,13 @@ package models
 type PaymentRequest struct {
 	CardNumber string `json:"card_number"`
 	Amount     int    `json:"amount"`
-	BookingID  int    `json:"booking_id"`
 	WebHookURL string `json:"web_hook_url"`
+
+	MetaData map[string]interface{} `json:"meta_data"` // Произвольные метаданные
 }
 
 type PaymentResponse struct {
-	BookingID int    `json:"booking_id"`
-	Status    string `json:"status"`
+	Status string `json:"status"`
+
+	MetaData map[string]interface{} `json:"meta_data"` // Произвольные метаданные
 }

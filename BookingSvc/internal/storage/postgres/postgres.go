@@ -74,12 +74,20 @@ func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*mo
 	return bookings, nil
 }
 
-func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
-	//TODO implement me
-	panic("implement me")
+func (r *Repository) UpdateBookingStatus(ctx context.Context, status string, bookingID int) error {
+	query := `
+		UPDATE bookings
+		SET status = $1
+		WHERE id = $2
+	`
+	_, err := r.db.Exec(ctx, query, status, bookingID)
+	if err != nil {
+		return fmt.Errorf("failed to update booking status: %w", err)
+	}
+	return nil
 }
 
-func (r *Repository) UpdateBooking(ctx context.Context, booking *models.Booking) error {
+func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -107,6 +115,7 @@ func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking)
 	if err != nil {
 		return -1, fmt.Errorf("failed to query bookings: %w", err)
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var roomID int
@@ -126,7 +135,7 @@ func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking)
     `
 	var bookingID int
 
-	err = r.db.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status).Scan(&bookingID)
+	err = tx.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status).Scan(&bookingID)
 	if err != nil {
 		return -1, fmt.Errorf("failed to create booking: %w", err)
 	}
