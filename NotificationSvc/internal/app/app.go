@@ -23,7 +23,7 @@ func (a *App) Init(ctx context.Context) error {
 	cfg := config.LoadConfig()
 
 	// Создание TelegramNotifier
-	telegramNotifier, err := delivery.NewTelegramNotifier(cfg.Telegram.Token, cfg.Telegram.ChatID)
+	telegramNotifier, err := delivery.NewTelegramNotifier(cfg.Telegram.Token)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func (a *App) Init(ctx context.Context) error {
 	notificationHandler := handler.NewNotificationHandler(notificationService)
 
 	// Инициализация KafkaConsumer с конфигурацией и хэндлером
-	kafkaConsumer, err := infrastructure.NewKafkaConsumer(cfg.Kafka.Broker, cfg.Kafka.Topic, notificationHandler)
+	kafkaConsumer, err := infrastructure.NewKafkaConsumer(cfg.Kafka.Broker, cfg.Kafka.Topics, notificationHandler)
 	if err != nil {
 		return err
 	}
