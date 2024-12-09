@@ -13,7 +13,7 @@ type HotelSvcClient struct {
 
 func NewHotelClient(grpcHost, grpcPort string) (*HotelSvcClient, error) {
 	address := fmt.Sprintf("%s:%s", grpcHost, grpcPort)
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	conn, err := grpc.Dial(address, grpc.WithInsecure()) // Добавить ретраи мб сервис упадет??
 	if err != nil {
 		return nil, fmt.Errorf("could not connect: %w", err)
 	}

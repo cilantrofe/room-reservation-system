@@ -14,16 +14,10 @@ type BookingRequest struct {
 	RoomDescription string `json:"room_description"`
 	RoomNumber      int    `json:"room_number"`
 	UserName        string `json:"user_name"`
-	ChatId          int    `json:"chat_id"`
-	//TODO:: добавить поля для оплаты.
-}
+	ChatId          string `json:"chat_id"`
 
-type BookingMessage struct {
-	HotelName       string `json:"hotel_name"`
-	RoomDescription string `json:"room_description"`
-	RoomNumber      int    `json:"room_number"`
-	UserName        string `json:"user_name"`
-	ChatId          int    `json:"chat_id"`
+	CardNumber string `json:"card_number"`
+	Amount     int    `json:"amount"`
 }
 
 type Booking struct {
@@ -43,15 +37,5 @@ func (req *BookingRequest) ToBooking() *Booking {
 		Status:    req.Status,
 		StartDate: req.StartDate,
 		EndDate:   req.EndDate,
-	}
-}
-
-func (req *BookingRequest) ToBookingMessage() *BookingMessage {
-	return &BookingMessage{
-		HotelName:       req.HotelName,
-		RoomDescription: req.RoomDescription,
-		RoomNumber:      req.RoomNumber,
-		UserName:        req.UserName,
-		ChatId:          req.ChatId,
 	}
 }

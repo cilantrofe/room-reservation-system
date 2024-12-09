@@ -7,10 +7,13 @@ import (
 )
 
 type Storage interface {
-	GetUnavailableRoomsByHotelId(ctx context.Context, HotelID int, startDate, endDate time.Time) (map[int]struct{}, error)
+	CreateBooking(ctx context.Context, booking *models.Booking) (int, error)
 	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error)
 	GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error)
-	CreateBooking(ctx context.Context, booking *models.Booking) error
-	UpdateBooking(ctx context.Context, booking *models.Booking) error
+
+	UpdateBookingStatus(ctx context.Context, status string, bookingID int) error
+
 	DeleteBooking(ctx context.Context, bookingID int) error
+
+	GetUnavailableRoomsByHotelId(ctx context.Context, HotelID int, startDate, endDate time.Time) (map[int]struct{}, error)
 }

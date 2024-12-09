@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	grpc "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc/hotelsvc"
+	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/kafka"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller/handler"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
@@ -61,10 +62,10 @@ func (a *App) Init(ctx context.Context) error {
 
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
-
 	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, kafkaTopic)
 
-	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient)
+	paymentClient := paymentClient.NewPaymentSvcClient("http://payment-system:8080/payment")
+	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient, paymentClient)
 	bookingHandler := handler.NewBookingHandler(a.service)
 	route := handler.SetupRoutes(bookingHandler)
 

@@ -60,8 +60,8 @@ func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*mo
 	}
 	defer rows.Close()
 
+	var booking models.Booking
 	for rows.Next() {
-		var booking models.Booking
 		if err := rows.Scan(&booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate, &booking.Status); err != nil {
 			return nil, fmt.Errorf("failed to scan booking: %w", err)
 		}
@@ -74,12 +74,20 @@ func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*mo
 	return bookings, nil
 }
 
-func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
-	//TODO implement me
-	panic("implement me")
+func (r *Repository) UpdateBookingStatus(ctx context.Context, status string, bookingID int) error {
+	query := `
+		UPDATE bookings
+		SET status = $1
+		WHERE id = $2
+	`
+	_, err := r.db.Exec(ctx, query, status, bookingID)
+	if err != nil {
+		return fmt.Errorf("failed to update booking status: %w", err)
+	}
+	return nil
 }
 
-func (r *Repository) UpdateBooking(ctx context.Context, booking *models.Booking) error {
+func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -89,14 +97,51 @@ func (r *Repository) DeleteBooking(ctx context.Context, bookingID int) error {
 	panic("implement me")
 }
 
-func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking) error {
+func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking) (int, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return -1, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	query := `
+		SELECT RoomID
+		FROM bookings
+		where RoomID = $1
+		and ($2 >= StartDate and $2 < EndDate) or
+			($2 <= StartDate and $3 > StartDate);
+	`
+	rows, err := tx.Query(ctx, query, booking.RoomID, booking.StartDate, booking.EndDate)
+	if err != nil {
+		return -1, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var roomID int
+		if err := rows.Scan(&roomID); err != nil {
+			return -1, fmt.Errorf("failed to scan room ID: %w", err)
+		}
+		if roomID == booking.RoomID {
+			return -1, fmt.Errorf("booking already exists")
+		}
+	}
+
+	query = `
         INSERT INTO bookings (UserID, RoomID, HotelID, StartDate, EndDate, Status, CreatedAt)
         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+		RETURNING id
+
     `
-	_, err := r.db.Exec(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status)
+	var bookingID int
+
+	err = tx.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status).Scan(&bookingID)
 	if err != nil {
-		return fmt.Errorf("failed to create booking: %w", err)
+		return -1, fmt.Errorf("failed to create booking: %w", err)
 	}
-	return nil
+	err = tx.Commit(ctx)
+	if err != nil {
+		return -1, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return bookingID, nil
 }

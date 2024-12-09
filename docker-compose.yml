@@ -73,6 +73,45 @@ services:
     networks:
       - app-network
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    networks:
+      - app-network
+
+  notification-svc:
+    build:
+      context: ./NotificationSvc
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+      TELEGRAM_TOKEN: "${TELEGRAM_TOKEN}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}" #TODO: будет удалено, вместо этого просто будет подставляться chat_id из json
+    env_file:
+      - .env
+    networks:
+      - app-network
+
   payment-system:
     build:
       context: ./PaymentSystem
