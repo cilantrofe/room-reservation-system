@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service/mocks"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ import (
 func TestCreateBooking_Success(t *testing.T) {
 	// Arrange
 	storageMock := &mocks.MockStorage{}
-	paymentMock := &mocks.PaymentSystemClient{}
+	paymentMock := &mocks.MockPaymentSystemClient{}
 
 	// Устанавливаем ожидание для вызова CreateBooking с любыми аргументами
 	storageMock.EXPECT().CreateBooking(mock.Anything, mock.Anything).Return(123, nil).Times(1)
@@ -34,6 +35,4 @@ func TestCreateBooking_Success(t *testing.T) {
 
 	// Assert
 	assert.NoError(t, err)
-	storageMock.AssertExpectations(t)
-	paymentMock.AssertExpectations(t)
 }

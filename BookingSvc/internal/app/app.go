@@ -60,11 +60,13 @@ func (a *App) Init(ctx context.Context) error {
 		log.Fatalf("Unable to connect to hotel: %v\n", err)
 	}
 
-	kafkaBroker := os.Getenv("KAFKA_BROKER")
-	kafkaTopic := os.Getenv("KAFKA_TOPIC")
-	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, kafkaTopic)
-
 	paymentSvcClient := paymentClient.NewPaymentSvcClient("http://payment-system:8080/payment")
+
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	topicClient := os.Getenv("KAFKA_TOPIC_CLIENT")
+	topicHotel := os.Getenv("KAFKA_TOPIC_HOTEL")
+	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, topicClient, topicHotel)
+
 	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient, paymentSvcClient)
 	bookingHandler := handler.NewBookingHandler(a.service)
 	route := handler.SetupRoutes(bookingHandler)

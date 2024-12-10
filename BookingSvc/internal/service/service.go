@@ -6,20 +6,19 @@ import (
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
-	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service/interfaces"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"log"
 	"time"
 )
 
 type BookingService struct {
-	storage             interfaces.Storage
-	messageProducer     interfaces.MessageProducer
-	hotelSvcClient      interfaces.HotelClient
-	paymentSystemClient interfaces.PaymentSystemClient
+	storage             Storage
+	messageProducer     MessageProducer
+	hotelSvcClient      HotelClient
+	paymentSystemClient PaymentSystemClient
 }
 
-func NewBookingService(db interfaces.Storage, producer interfaces.MessageProducer, hotelClient interfaces.HotelClient, paymentClient interfaces.PaymentSystemClient) *BookingService {
+func NewBookingService(db Storage, producer MessageProducer, hotelClient HotelClient, paymentClient PaymentSystemClient) *BookingService {
 	return &BookingService{db, producer, hotelClient, paymentClient}
 }
 
@@ -61,7 +60,7 @@ func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string,
 		if err != nil {
 			return fmt.Errorf("error in Marshal KafkaUserMessage: %w", err)
 		}
-		err = b.messageProducer.SendMessage(ctx, kafkaUserMessage)
+		err = b.messageProducer.SendUserMessage(ctx, kafkaUserMessage)
 		if err != nil {
 			return fmt.Errorf("error in SendMessage: %w", err)
 		}
@@ -72,7 +71,7 @@ func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string,
 		if err != nil {
 			return fmt.Errorf("error in Marshal KafkaHotelierMessage: %w", err)
 		}
-		err = b.messageProducer.SendMessage(ctx, kafkaHotelierMessage)
+		err = b.messageProducer.SendHotelierMessage(ctx, kafkaHotelierMessage)
 		if err != nil {
 			return fmt.Errorf("error in SendMessage: %w", err)
 		}
