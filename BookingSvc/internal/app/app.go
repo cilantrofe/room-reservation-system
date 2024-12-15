@@ -7,6 +7,7 @@ import (
 	grpc "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc/hotelsvc"
 	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/kafka"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/config"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller/handler"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/storage/postgres"
@@ -21,61 +22,58 @@ import (
 )
 
 type App struct {
-	dbPool  *pgxpool.Pool
-	service *service.BookingService
-	server  *http.Server
+	server *http.Server
 }
 
 func NewApp() *App {
 	return &App{}
 }
 
+func NewDatabasePool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
+	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
+	return pgxpool.Connect(ctx, connString)
+}
+
+func NewKafkaProducer(cfg *config.Config) *kafka.Producer {
+	return kafka.NewProducer([]string{cfg.KafkaBroker}, cfg.KafkaTopicClient, cfg.KafkaTopicHotel)
+}
+
+func NewHotelClient(cfg *config.Config) (*grpc.HotelSvcClient, error) {
+	return grpc.NewHotelClient(cfg.GRPCHost, cfg.GRPCPort)
+}
+
+func NewPaymentClient(cfg *config.Config) *paymentClient.Client {
+	return paymentClient.NewPaymentSvcClient(cfg.PaymentSvcURL)
+}
+
 func (a *App) Init(ctx context.Context) error {
-	//инициализация grpc, handler, роутинг, адаптеров, репозиториев, кафка, коннекторов к другим микросервисам,
-	//if err := godotenv.Load(); err != nil {
-	//	log.Println("Warning: No .env file found")
-	//}
-
-	// Получение переменных для базы данных
-	dbHost := os.Getenv("BOOKING_DB_HOST")
-	dbPort := os.Getenv("BOOKING_DB_PORT")
-	dbUser := os.Getenv("BOOKING_DB_USER")
-	dbPassword := os.Getenv("BOOKING_DB_PASSWORD")
-	dbName := os.Getenv("BOOKING_DB_NAME")
-
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	// Подключение к базе данных с использованием pgxpool
-	pgxConn, err := pgxpool.Connect(ctx, connString)
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
-	}
-	a.dbPool = pgxConn
-	repo := postgres.NewPostgresRepository(pgxConn)
-	grpcHost := os.Getenv("BOOKING_GRPC_HOST")
-	grpcPort := os.Getenv("BOOKING_GRPC_PORT")
-	hotelClient, err := grpc.NewHotelClient(grpcHost, grpcPort)
-	if err != nil {
-		log.Fatalf("Unable to connect to hotel: %v\n", err)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	paymentSvcClient := paymentClient.NewPaymentSvcClient("http://payment-system:8080/payment")
+	kafkaProducer := NewKafkaProducer(cfg)
+	hotelClient, err := NewHotelClient(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize hotel client: %w", err)
+	}
+	paymentSvcClient := NewPaymentClient(cfg)
 
-	kafkaBroker := os.Getenv("KAFKA_BROKER")
-	topicClient := os.Getenv("KAFKA_TOPIC_CLIENT")
-	topicHotel := os.Getenv("KAFKA_TOPIC_HOTEL")
-	kafkaProducer := kafka.NewProducer([]string{kafkaBroker}, topicClient, topicHotel)
+	dbPool, err := NewDatabasePool(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize database pool: %w", err)
+	}
+	repo := postgres.NewPostgresRepository(dbPool)
 
-	a.service = service.NewBookingService(repo, kafkaProducer, hotelClient, paymentSvcClient)
-	bookingHandler := handler.NewBookingHandler(a.service)
+	service := service.NewBookingService(repo, kafkaProducer, hotelClient, paymentSvcClient)
+	bookingHandler := handler.NewBookingHandler(service)
 	route := handler.SetupRoutes(bookingHandler)
 
-	httpPort := os.Getenv("BOOKING_HTTP_PORT")
 	a.server = &http.Server{
-		Addr:    ":" + httpPort,
+		Addr:    ":" + cfg.HTTPPort,
 		Handler: route,
 	}
+
 	return nil
 }
 
@@ -124,14 +122,6 @@ func (a *App) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 	log.Println("HTTP server shutdown gracefully")
-
-	// Закрытие пула соединений к базе данных
-	if a.dbPool != nil {
-		a.dbPool.Close()
-		log.Println("Database connection closed")
-	} else {
-		log.Println("Database pool is nil, skipping close")
-	}
 
 	return nil
 }

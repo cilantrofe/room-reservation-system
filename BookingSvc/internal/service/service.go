@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"log"
@@ -23,6 +22,7 @@ func NewBookingService(db Storage, producer MessageProducer, hotelClient HotelCl
 }
 
 func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
+	// Тут МБ валидация
 	booking := bookingRequest.ToBooking()
 
 	bookingID, err := b.storage.CreateBooking(ctx, booking)
@@ -31,7 +31,7 @@ func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *mode
 	}
 
 	bookingMessage := bookingRequest.ToBookingMessage(bookingID)
-	paymentRequest := paymentsvc.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
+	paymentRequest := models.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
 
 	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
 	if err != nil {
@@ -64,7 +64,7 @@ func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string,
 		if err != nil {
 			return fmt.Errorf("error in SendMessage: %w", err)
 		}
-
+		log.Println("message sent", bookingMessage)
 		hotelierMessage := bookingMessage.ToHotelierMessage("hotelier name", "123123")
 
 		kafkaHotelierMessage, err := json.Marshal(hotelierMessage)

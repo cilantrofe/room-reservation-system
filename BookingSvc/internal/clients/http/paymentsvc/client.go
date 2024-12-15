@@ -8,23 +8,12 @@ import (
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
 type Client struct {
 	baseUrl string
 	client  *http.Client
-}
-
-func ToPaymentRequest(bookingMessage *models.BookingMessage, cardNumber string, amount int) *models.PaymentRequest {
-	return &models.PaymentRequest{
-		CardNumber: cardNumber,
-		Amount:     amount,
-		WebHookURL: "http://booking-service:8080/bookings/payment/response?booking_id=" + strconv.Itoa(bookingMessage.BookingID),
-
-		MetaData: bookingMessage,
-	}
 }
 
 func NewPaymentSvcClient(baseUrl string) *Client {
