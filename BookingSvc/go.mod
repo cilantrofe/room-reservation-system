@@ -1,10 +1,10 @@
 module github.com/Quizert/room-reservation-system/BookingSvc
 
-go 1.22.7
+go 1.23.3
 
 require (
 	github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241118151701-b3500a69d19c
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/Quizert/room-reservation-system/Libs v0.0.0-20241220134609-513337544b78
 	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/segmentio/kafka-go v0.4.47
@@ -16,6 +16,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
