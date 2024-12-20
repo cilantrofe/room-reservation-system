@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
 	"log"
@@ -105,7 +104,7 @@ func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 
 func (b *BookingHandler) HandlePaymentWebHook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var paymentResponse paymentClient.Response
+	var paymentResponse models.PaymentResponse
 	if err := json.NewDecoder(r.Body).Decode(&paymentResponse); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest) //err.Error() - исправить
 		return

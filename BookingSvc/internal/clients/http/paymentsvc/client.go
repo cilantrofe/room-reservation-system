@@ -8,37 +8,12 @@ import (
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
 type Client struct {
 	baseUrl string
 	client  *http.Client
-}
-
-type Request struct {
-	CardNumber string `json:"card_number"`
-	Amount     int    `json:"amount"`
-	WebHookURL string `json:"web_hook_url"`
-
-	MetaData *models.BookingMessage `json:"meta_data"` //Это в meta data
-}
-
-type Response struct {
-	Status string `json:"status"`
-
-	MetaData *models.BookingMessage `json:"meta_data"` //Это в meta data
-}
-
-func ToPaymentRequest(bookingMessage *models.BookingMessage, cardNumber string, amount int) *Request {
-	return &Request{
-		CardNumber: cardNumber,
-		Amount:     amount,
-		WebHookURL: "http://booking-service:8080/bookings/payment/response?booking_id=" + strconv.Itoa(bookingMessage.BookingID),
-
-		MetaData: bookingMessage,
-	}
 }
 
 func NewPaymentSvcClient(baseUrl string) *Client {
@@ -48,12 +23,12 @@ func NewPaymentSvcClient(baseUrl string) *Client {
 	}
 }
 
-func (c *Client) CreatePaymentRequest(ctx context.Context, paymentRequest *Request) error {
+func (c *Client) CreatePaymentRequest(ctx context.Context, paymentRequest *models.PaymentRequest) error {
 	jsonRequest, err := json.Marshal(paymentRequest)
 	if err != nil {
 		return fmt.Errorf("err in marshaling json: %w", err)
 	}
-	log.Println("JSON Request: ", string(jsonRequest))
+	log.Println("JSON PaymentRequest: ", string(jsonRequest))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseUrl, bytes.NewBuffer(jsonRequest))
 	if err != nil {

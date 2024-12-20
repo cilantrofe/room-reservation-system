@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc/hotelsvc"
-	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"log"
@@ -15,11 +13,11 @@ import (
 type BookingService struct {
 	storage             Storage
 	messageProducer     MessageProducer
-	hotelSvcGrpcClient  *grpc.HotelSvcClient
-	paymentSystemClient *paymentsvc.Client
+	hotelSvcClient      HotelClient
+	paymentSystemClient PaymentSystemClient
 }
 
-func NewBookingService(db Storage, producer MessageProducer, hotelClient *grpc.HotelSvcClient, paymentClient *paymentsvc.Client) *BookingService {
+func NewBookingService(db Storage, producer MessageProducer, hotelClient HotelClient, paymentClient PaymentSystemClient) *BookingService {
 	return &BookingService{db, producer, hotelClient, paymentClient}
 }
 
@@ -33,7 +31,7 @@ func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *mode
 	}
 
 	bookingMessage := bookingRequest.ToBookingMessage(bookingID)
-	paymentRequest := paymentsvc.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
+	paymentRequest := models.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
 
 	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
 	if err != nil {
@@ -62,18 +60,18 @@ func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string,
 		if err != nil {
 			return fmt.Errorf("error in Marshal KafkaUserMessage: %w", err)
 		}
-		err = b.messageProducer.SendMessage(ctx, kafkaUserMessage)
+		err = b.messageProducer.SendUserMessage(ctx, kafkaUserMessage)
 		if err != nil {
 			return fmt.Errorf("error in SendMessage: %w", err)
 		}
-
+		log.Println("message sent", bookingMessage)
 		hotelierMessage := bookingMessage.ToHotelierMessage("hotelier name", "123123")
 
 		kafkaHotelierMessage, err := json.Marshal(hotelierMessage)
 		if err != nil {
 			return fmt.Errorf("error in Marshal KafkaHotelierMessage: %w", err)
 		}
-		err = b.messageProducer.SendMessage(ctx, kafkaHotelierMessage)
+		err = b.messageProducer.SendHotelierMessage(ctx, kafkaHotelierMessage)
 		if err != nil {
 			return fmt.Errorf("error in SendMessage: %w", err)
 		}
@@ -90,7 +88,7 @@ func (b *BookingService) DeleteBooking(ctx context.Context, id int) error {
 
 func (b *BookingService) GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error) {
 	request := hotelpb.GetRoomsRequest{HotelId: int32(hotelID)}
-	allRooms, err := b.hotelSvcGrpcClient.Api.GetRoomsByHotelId(ctx, &request)
+	allRooms, err := b.hotelSvcClient.GetRoomsByHotelId(ctx, &request)
 	if err != nil {
 		return nil, fmt.Errorf("error in gRPC request GetRoomsByHotelID: %v", err)
 	}
