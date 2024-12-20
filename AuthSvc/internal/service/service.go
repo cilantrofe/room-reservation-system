@@ -34,7 +34,7 @@ func NewAuthServiceImpl(storage Storage, tokenTTl time.Duration, secret string, 
 
 func (a *AuthServiceImpl) RegisterUser(ctx context.Context, user *models.User) (int, error) {
 	a.log.With(
-		zap.String("Layer", "Auth.RegisterUser"),
+		zap.String("Layer", "service: RegisterUser"),
 		zap.String("username", user.Username),
 		zap.Bool("is_hotelier", user.IsHotelier),
 		zap.String("chat_id", user.ChatID)).Info("Received request to register user")
@@ -66,7 +66,7 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 		zap.String("Layer", "Auth.RegisterUser"),
 		zap.String("username", user.Username),
 		zap.Bool("is_hotelier", user.IsHotelier),
-		zap.String("chat_id", user.ChatID))
+		zap.String("chat_id", user.ChatID)).Info("Received request to login user")
 
 	UserExist, err := a.storage.LoginUser(ctx, user.ChatID)
 	if err != nil {
@@ -85,7 +85,7 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 		return "", fmt.Errorf("%s: %w", "auth.LoginUser", ErrInvalidCredentials)
 	}
 
-	token, err := jwt.NewToken(user, a.secret, a.tokenTTl)
+	token, err := jwt.NewToken(UserExist, a.secret, a.tokenTTl)
 	if err != nil {
 		a.log.Error("failed to generate token", zap.Error(err))
 		return "", fmt.Errorf("%s: %w", "auth.LoginUser", err)

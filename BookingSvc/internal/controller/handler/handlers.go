@@ -1,21 +1,30 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
-	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
+	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 )
 
-type BookingHandler struct {
-	bookingService *service.BookingService
+type BookingService interface {
+	CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error
+	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error)
+	GetBookingsByHotelID(ctx context.Context, id int) (*models.BookingInfo, error)
+	GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error)
+	UpdateBookingStatus(ctx context.Context, status string, bookingMessage *models.BookingMessage) error
 }
 
-func NewBookingHandler(b *service.BookingService) *BookingHandler {
+type BookingHandler struct {
+	bookingService BookingService
+}
+
+func NewBookingHandler(b BookingService) *BookingHandler {
 	return &BookingHandler{b}
 }
 

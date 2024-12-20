@@ -47,10 +47,10 @@ func (r *Repository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID i
 	return unavailableRoomsID, nil
 }
 
-func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
-	bookings := make([]*models.Booking, 0)
+func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error) {
+	bookings := make([]*models.BookingInfo, 0)
 	query := `
-        SELECT UserID, RoomID, HotelID, StartDate, EndDate, Status
+        SELECT UserID, RoomID, HotelID, StartDate, EndDate
         FROM bookings
         WHERE UserID = $1
     `
@@ -60,14 +60,13 @@ func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*mo
 	}
 	defer rows.Close()
 
-	var booking models.Booking
+	var booking models.BookingInfo
 	for rows.Next() {
-		if err := rows.Scan(&booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate, &booking.Status); err != nil {
+		if err := rows.Scan(&booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate); err != nil {
 			return nil, fmt.Errorf("failed to scan booking: %w", err)
 		}
 		bookings = append(bookings, &booking)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
@@ -87,7 +86,7 @@ func (r *Repository) UpdateBookingStatus(ctx context.Context, status string, boo
 	return nil
 }
 
-func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
+func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.BookingInfo, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -97,7 +96,7 @@ func (r *Repository) DeleteBooking(ctx context.Context, bookingID int) error {
 	panic("implement me")
 }
 
-func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking) (int, error) {
+func (r *Repository) CreateBooking(ctx context.Context, booking *models.BookingInfo) (int, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return -1, fmt.Errorf("failed to start transaction: %w", err)
@@ -128,14 +127,14 @@ func (r *Repository) CreateBooking(ctx context.Context, booking *models.Booking)
 	}
 
 	query = `
-        INSERT INTO bookings (UserID, RoomID, HotelID, StartDate, EndDate, Status, CreatedAt)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        INSERT INTO bookings (UserID, RoomID, HotelID, StartDate, EndDate, CreatedAt)
+        VALUES ($1, $2, $3, $4, $5, NOW())
 		RETURNING id
 
     `
 	var bookingID int
 
-	err = tx.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate, booking.Status).Scan(&bookingID)
+	err = tx.QueryRow(ctx, query, booking.UserID, booking.RoomID, booking.HotelID, booking.StartDate, booking.EndDate).Scan(&bookingID)
 	if err != nil {
 		return -1, fmt.Errorf("failed to create booking: %w", err)
 	}

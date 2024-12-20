@@ -3,34 +3,66 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
+	"go.uber.org/zap"
 	"log"
 	"time"
 )
 
-type BookingService struct {
+var (
+	ErrForbiddenAccess = errors.New("forbidden access")
+)
+
+type BookingServiceImpl struct {
 	storage             Storage
 	messageProducer     MessageProducer
 	hotelSvcClient      HotelClient
 	paymentSystemClient PaymentSystemClient
+	log                 *zap.Logger
 }
 
-func NewBookingService(db Storage, producer MessageProducer, hotelClient HotelClient, paymentClient PaymentSystemClient) *BookingService {
-	return &BookingService{db, producer, hotelClient, paymentClient}
+func NewBookingServiceImpl(db Storage, producer MessageProducer, hotelClient HotelClient, paymentClient PaymentSystemClient, logger *zap.Logger) *BookingServiceImpl {
+	return &BookingServiceImpl{db, producer, hotelClient, paymentClient, logger}
 }
 
-func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
-	// Тут МБ валидация
-	booking := bookingRequest.ToBooking()
+func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
+	b.log.With(
+		zap.String("Layer", "service: RegisterUser"),
+		zap.Int("room id", bookingRequest.RoomID),
+		zap.Int("is_hotelier", bookingRequest.HotelID),
+		zap.Time("start date", bookingRequest.StartDate),
+		zap.Time("end date", bookingRequest.EndDate),
+		zap.String("hotel name", bookingRequest.HotelName),
+		zap.String("RoomDescription", bookingRequest.RoomDescription),
+		zap.String("card number", bookingRequest.CardNumber),
+		zap.Int("amount", bookingRequest.Amount)).Info("Received request to create booking")
+
+	isHotelier := ctx.Value("is_hotelier").(bool)
+	userID := ctx.Value("user_id").(int)
+	username := ctx.Value("username").(string)
+	chatID := ctx.Value("chat_id").(string)
+
+	b.log.With(
+		zap.Int("user id", userID),
+		zap.String("username", username),
+		zap.String("chat id", chatID),
+		zap.Bool("is hotelier", isHotelier),
+	)
+
+	fmt.Println(userID, username, chatID)
+
+	booking := bookingRequest.ToBookingInfo(userID)
 
 	bookingID, err := b.storage.CreateBooking(ctx, booking)
 	if err != nil {
 		return fmt.Errorf("error in CreateBooking: %w", err)
 	}
 
-	bookingMessage := bookingRequest.ToBookingMessage(bookingID)
+	//TODO: Расчитать Amount
+	bookingMessage := bookingRequest.ToBookingMessage(bookingID, username, chatID)
 	paymentRequest := models.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
 
 	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
@@ -40,15 +72,15 @@ func (b *BookingService) CreateBooking(ctx context.Context, bookingRequest *mode
 	return nil
 }
 
-func (b *BookingService) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
+func (b *BookingServiceImpl) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error) {
 	return b.storage.GetBookingsByUserID(ctx, userID)
 }
 
-func (b *BookingService) GetBookingsByHotelID(ctx context.Context, id int) (*models.Booking, error) {
+func (b *BookingServiceImpl) GetBookingsByHotelID(ctx context.Context, id int) (*models.BookingInfo, error) {
 	return b.storage.GetBookingsByHotelID(ctx, id)
 }
 
-func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string, bookingMessage *models.BookingMessage) error {
+func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, status string, bookingMessage *models.BookingMessage) error {
 	err := b.storage.UpdateBookingStatus(ctx, status, bookingMessage.BookingID)
 	if err != nil {
 		return fmt.Errorf("error in UpdateBookingStatus: %w", err)
@@ -82,11 +114,11 @@ func (b *BookingService) UpdateBookingStatus(ctx context.Context, status string,
 	return nil
 }
 
-func (b *BookingService) DeleteBooking(ctx context.Context, id int) error {
+func (b *BookingServiceImpl) DeleteBooking(ctx context.Context, id int) error {
 	return b.storage.DeleteBooking(ctx, id)
 }
 
-func (b *BookingService) GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error) {
+func (b *BookingServiceImpl) GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error) {
 	request := hotelpb.GetRoomsRequest{HotelId: int32(hotelID)}
 	allRooms, err := b.hotelSvcClient.GetRoomsByHotelId(ctx, &request)
 	if err != nil {
