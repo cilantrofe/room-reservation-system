@@ -37,7 +37,7 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 }
 
 // CreateBooking mocks base method.
-func (m *MockStorage) CreateBooking(ctx context.Context, booking *models.Booking) (int, error) {
+func (m *MockStorage) CreateBooking(ctx context.Context, booking *models.BookingInfo) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateBooking", ctx, booking)
 	ret0, _ := ret[0].(int)
@@ -66,10 +66,10 @@ func (mr *MockStorageMockRecorder) DeleteBooking(ctx, bookingID interface{}) *go
 }
 
 // GetBookingsByHotelID mocks base method.
-func (m *MockStorage) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error) {
+func (m *MockStorage) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.BookingInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBookingsByHotelID", ctx, bookingID)
-	ret0, _ := ret[0].(*models.Booking)
+	ret0, _ := ret[0].(*models.BookingInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -81,10 +81,10 @@ func (mr *MockStorageMockRecorder) GetBookingsByHotelID(ctx, bookingID interface
 }
 
 // GetBookingsByUserID mocks base method.
-func (m *MockStorage) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error) {
+func (m *MockStorage) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBookingsByUserID", ctx, userID)
-	ret0, _ := ret[0].([]*models.Booking)
+	ret0, _ := ret[0].([]*models.BookingInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

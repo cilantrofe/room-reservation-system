@@ -8,9 +8,9 @@ import (
 
 //go:generate mockgen -source=storage.go -destination=mocks/storage_mock.go -package=mocks
 type Storage interface {
-	CreateBooking(ctx context.Context, booking *models.Booking) (int, error)
-	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.Booking, error)
-	GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.Booking, error)
+	CreateBooking(ctx context.Context, booking *models.BookingInfo) (int, error)
+	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error)
+	GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.BookingInfo, error)
 
 	UpdateBookingStatus(ctx context.Context, status string, bookingID int) error
 

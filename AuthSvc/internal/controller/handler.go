@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/models"
+	"github.com/Quizert/room-reservation-system/AuthSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/storage"
+	"log"
 	"net/http"
 )
 
@@ -50,18 +52,21 @@ func (a *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO: ErrInvalidCredentials
-
 	token, err := a.authService.LoginUser(ctx, &user)
 	if err != nil {
-		if errors.Is(err, storage.ErrUserNotFound) {
-			http.Error(w, "User not found", http.StatusNotFound)
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			http.Error(w, service.ErrInvalidCredentials.Error(), http.StatusNotFound)
 			return
 		}
+		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	err = json.NewEncoder(w).Encode(token)
+	jwtResponse := map[string]string{
+		"access_token": token,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(jwtResponse)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return

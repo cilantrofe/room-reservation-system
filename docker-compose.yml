@@ -35,7 +35,41 @@ services:
       retries: 5
     networks:
       - app-network
+  auth-service:
+    build:
+      context: ./AuthSvc
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8083:${AUTH_HTTP_PORT}"
+      - "50053:${AUTH_GRPC_PORT}"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - app-network
 
+  auth-db:
+    image: postgres:15
+    container_name: auth-db
+    env_file:
+      - .env
+    ports:
+      - "5435:${BOOKING_DB_PORT}"
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - app-network
 
   hotel-service:
     build:
@@ -126,6 +160,7 @@ services:
 volumes:
   booking-db-data:
   hotel-db-data:
+  auth-db-data:
 
 networks:
   app-network:
