@@ -55,7 +55,7 @@ func (m *Middleware) Auth(next http.HandlerFunc, clientHotelierAccess bool) http
 			chatID, _ := claims["chat_id"].(string)
 			log.Println(token)
 			ctx := context.WithValue(r.Context(), "user_id", int(userID))
-			ctx = context.WithValue(ctx, "is_hotelier", isHotelier)
+			ctx = context.WithValue(ctx, "is_hotelier", isHotelier) //TODO: Мейби не нужно
 			ctx = context.WithValue(ctx, "username", username)
 			ctx = context.WithValue(ctx, "chat_id", chatID)
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/Quizert/room-reservation-system/Libs/middleware"
 	"net/http"
 )
 

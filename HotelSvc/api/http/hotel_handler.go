@@ -28,11 +28,15 @@ func (h *HotelHandler) GetHotels(w http.ResponseWriter, r *http.Request) {
 // AddHotel - обработчик для добавления нового отеля
 func (h *HotelHandler) AddHotel(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
+		ctx := r.Context()
+		ownerID := ctx.Value("user_id").(int)
+
 		var hotel models.Hotel
 		if err := json.NewDecoder(r.Body).Decode(&hotel); err != nil {
 			http.Error(w, "Invalid input", http.StatusBadRequest)
 			return
 		}
+		hotel.OwnerId = ownerID
 		if err := h.hotelService.AddHotel(hotel); err != nil {
 			http.Error(w, "Failed to add hotel", http.StatusInternalServerError)
 			return
