@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HotelService_GetRoomsByHotelId_FullMethodName = "/hotelpb.HotelService/GetRoomsByHotelId"
+	HotelService_GetRoomsByHotelId_FullMethodName   = "/hotelpb.HotelService/GetRoomsByHotelId"
+	HotelService_GetOwnerIdByHotelId_FullMethodName = "/hotelpb.HotelService/GetOwnerIdByHotelId"
 )
 
 // HotelServiceClient is the client API for HotelService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HotelServiceClient interface {
 	GetRoomsByHotelId(ctx context.Context, in *GetRoomsRequest, opts ...grpc.CallOption) (*GetRoomsResponse, error)
+	GetOwnerIdByHotelId(ctx context.Context, in *GetOwnerIdRequest, opts ...grpc.CallOption) (*GetOwnerIdResponse, error)
 }
 
 type hotelServiceClient struct {
@@ -47,11 +49,22 @@ func (c *hotelServiceClient) GetRoomsByHotelId(ctx context.Context, in *GetRooms
 	return out, nil
 }
 
+func (c *hotelServiceClient) GetOwnerIdByHotelId(ctx context.Context, in *GetOwnerIdRequest, opts ...grpc.CallOption) (*GetOwnerIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOwnerIdResponse)
+	err := c.cc.Invoke(ctx, HotelService_GetOwnerIdByHotelId_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HotelServiceServer is the server API for HotelService service.
 // All implementations must embed UnimplementedHotelServiceServer
 // for forward compatibility.
 type HotelServiceServer interface {
 	GetRoomsByHotelId(context.Context, *GetRoomsRequest) (*GetRoomsResponse, error)
+	GetOwnerIdByHotelId(context.Context, *GetOwnerIdRequest) (*GetOwnerIdResponse, error)
 	mustEmbedUnimplementedHotelServiceServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedHotelServiceServer struct{}
 
 func (UnimplementedHotelServiceServer) GetRoomsByHotelId(context.Context, *GetRoomsRequest) (*GetRoomsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRoomsByHotelId not implemented")
+}
+func (UnimplementedHotelServiceServer) GetOwnerIdByHotelId(context.Context, *GetOwnerIdRequest) (*GetOwnerIdResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOwnerIdByHotelId not implemented")
 }
 func (UnimplementedHotelServiceServer) mustEmbedUnimplementedHotelServiceServer() {}
 func (UnimplementedHotelServiceServer) testEmbeddedByValue()                      {}
@@ -104,6 +120,24 @@ func _HotelService_GetRoomsByHotelId_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HotelService_GetOwnerIdByHotelId_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOwnerIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HotelServiceServer).GetOwnerIdByHotelId(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HotelService_GetOwnerIdByHotelId_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HotelServiceServer).GetOwnerIdByHotelId(ctx, req.(*GetOwnerIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HotelService_ServiceDesc is the grpc.ServiceDesc for HotelService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +148,10 @@ var HotelService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRoomsByHotelId",
 			Handler:    _HotelService_GetRoomsByHotelId_Handler,
+		},
+		{
+			MethodName: "GetOwnerIdByHotelId",
+			Handler:    _HotelService_GetOwnerIdByHotelId_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

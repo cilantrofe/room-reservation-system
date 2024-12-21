@@ -13,9 +13,9 @@ import (
 )
 
 type BookingService interface {
-	CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error
+	CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest, user *models.User) error
 	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error)
-	GetBookingsByHotelID(ctx context.Context, id int) (*models.BookingInfo, error)
+	GetBookingsByHotelID(ctx context.Context, hotelID, userID int) (*models.BookingInfo, error)
 	GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error)
 	UpdateBookingStatus(ctx context.Context, status string, bookingMessage *models.BookingMessage) error
 }
@@ -28,19 +28,68 @@ func NewBookingHandler(b BookingService) *BookingHandler {
 	return &BookingHandler{b}
 }
 
+func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID := ctx.Value("user_id").(int)
+	username := ctx.Value("username").(string)
+	chatID := ctx.Value("chat_id").(string)
+
+	user := models.NewUser(userID, username, chatID)
+
+	var bookingRequest models.BookingRequest
+	if err := json.NewDecoder(r.Body).Decode(&bookingRequest); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest) //err.Error() - исправить
+		return
+	}
+
+	if err := b.bookingService.CreateBooking(ctx, &bookingRequest, user); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError) //Тут добавить обработку: бронирвание уже существует error
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
 func (b *BookingHandler) GetBookingByUserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userId, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-	//TODO: Если пользователь зареган в системе, то возвращаем 200, иначе ошибка 401 или 403 или 404
+
+	userID := ctx.Value("user_id").(int)
+
+	userIDParams, err := strconv.Atoi(r.URL.Query().Get("user_id"))
 	if err != nil {
 		http.Error(w, "Invalid user_id", http.StatusBadRequest)
 		return
 	}
-	bookings, err := b.bookingService.GetBookingsByUserID(ctx, userId)
+	if userIDParams != userID {
+		http.Error(w, "forbidden access", http.StatusForbidden)
+		return
+	}
+
+	bookings, err := b.bookingService.GetBookingsByUserID(ctx, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bookings)
+}
+
+func (b *BookingHandler) GetBookingByHotelID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID := ctx.Value("user_id").(int) // Должен быть Владелец отеля
+	hotelID, err := strconv.Atoi(r.URL.Query().Get("hotel_id"))
+	if err != nil {
+		fmt.Println(hotelID)
+		http.Error(w, "Invalid user id", http.StatusBadRequest)
+		return
+	}
+
+	bookings, err := b.bookingService.GetBookingsByHotelID(ctx, hotelID, userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bookings)
 }
@@ -77,38 +126,6 @@ func (b *BookingHandler) GetAvailableRooms(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(availableRooms)
 
-}
-
-func (b *BookingHandler) GetBookingByHotelID(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	hotelID, err := strconv.Atoi(r.URL.Query().Get("hotel_id"))
-	if err != nil {
-		fmt.Println(hotelID)
-		http.Error(w, "Invalid user id", http.StatusBadRequest)
-		return
-	}
-	bookings, err := b.bookingService.GetBookingsByHotelID(ctx, hotelID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(bookings)
-}
-
-func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	var bookingRequest models.BookingRequest
-	if err := json.NewDecoder(r.Body).Decode(&bookingRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest) //err.Error() - исправить
-		return
-	}
-
-	if err := b.bookingService.CreateBooking(ctx, &bookingRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError) //Тут добавить обработку: бронирвание уже существует error
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
 }
 
 func (b *BookingHandler) HandlePaymentWebHook(w http.ResponseWriter, r *http.Request) {

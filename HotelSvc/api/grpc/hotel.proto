@@ -6,6 +6,7 @@ option go_package = "hotelpb/";
 
 service HotelService {
   rpc GetRoomsByHotelId (GetRoomsRequest) returns (GetRoomsResponse);
+  rpc GetOwnerIdByHotelId(GetOwnerIdRequest) returns (GetOwnerIdResponse);
 }
 
 message GetRoomsRequest {
@@ -22,4 +23,12 @@ message Room {
 
 message GetRoomsResponse {
   repeated Room rooms = 1;
+}
+
+message GetOwnerIdRequest {
+  int32 id = 1;
+}
+
+message GetOwnerIdResponse {
+  int32 owner_id = 1;
 }

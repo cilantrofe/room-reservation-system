@@ -28,7 +28,7 @@ func NewBookingServiceImpl(db Storage, producer MessageProducer, hotelClient Hot
 	return &BookingServiceImpl{db, producer, hotelClient, paymentClient, logger}
 }
 
-func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest) error {
+func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest, user *models.User) error {
 	b.log.With(
 		zap.String("Layer", "service: RegisterUser"),
 		zap.Int("room id", bookingRequest.RoomID),
@@ -38,23 +38,14 @@ func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *
 		zap.String("hotel name", bookingRequest.HotelName),
 		zap.String("RoomDescription", bookingRequest.RoomDescription),
 		zap.String("card number", bookingRequest.CardNumber),
+		zap.Int("user id", user.UserID),
+		zap.String("username", user.Username),
+		zap.String("chat id", user.ChatID),
 		zap.Int("amount", bookingRequest.Amount)).Info("Received request to create booking")
 
-	isHotelier := ctx.Value("is_hotelier").(bool)
-	userID := ctx.Value("user_id").(int)
-	username := ctx.Value("username").(string)
-	chatID := ctx.Value("chat_id").(string)
+	fmt.Println(user.UserID, user.Username, user.ChatID)
 
-	b.log.With(
-		zap.Int("user id", userID),
-		zap.String("username", username),
-		zap.String("chat id", chatID),
-		zap.Bool("is hotelier", isHotelier),
-	)
-
-	fmt.Println(userID, username, chatID)
-
-	booking := bookingRequest.ToBookingInfo(userID)
+	booking := bookingRequest.ToBookingInfo(user.UserID)
 
 	bookingID, err := b.storage.CreateBooking(ctx, booking)
 	if err != nil {
@@ -62,7 +53,7 @@ func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *
 	}
 
 	//TODO: Расчитать Amount
-	bookingMessage := bookingRequest.ToBookingMessage(bookingID, username, chatID)
+	bookingMessage := bookingRequest.ToBookingMessage(bookingID, user.Username, user.ChatID)
 	paymentRequest := models.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
 
 	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
@@ -76,7 +67,9 @@ func (b *BookingServiceImpl) GetBookingsByUserID(ctx context.Context, userID int
 	return b.storage.GetBookingsByUserID(ctx, userID)
 }
 
-func (b *BookingServiceImpl) GetBookingsByHotelID(ctx context.Context, id int) (*models.BookingInfo, error) {
+func (b *BookingServiceImpl) GetBookingsByHotelID(ctx context.Context, hotelID, userID int) (*models.BookingInfo, error) {
+	//Проверим, что отель действительно принадлежит userID
+	b.hotelSvcClient.GetRoomsByHotelId()
 	return b.storage.GetBookingsByHotelID(ctx, id)
 }
 
@@ -97,6 +90,8 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, status str
 			return fmt.Errorf("error in SendMessage: %w", err)
 		}
 		log.Println("message sent", bookingMessage)
+		//TODO: gRPC к AuthSvc для HotelierChatID
+
 		hotelierMessage := bookingMessage.ToHotelierMessage("hotelier name", "123123")
 
 		kafkaHotelierMessage, err := json.Marshal(hotelierMessage)

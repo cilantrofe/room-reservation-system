@@ -97,7 +97,8 @@ func startHTTPServer(hotelService *service2.HotelService) error {
 
 type server struct {
 	hotelpb.UnimplementedHotelServiceServer
-	roomService *service2.RoomService
+	roomService  *service2.RoomService
+	ownerService *service2.OwnerService
 }
 
 func (s *server) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsRequest) (*hotelpb.GetRoomsResponse, error) {
@@ -109,6 +110,15 @@ func (s *server) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsReq
 
 	return &hotelpb.GetRoomsResponse{Rooms: rooms}, nil
 
+}
+
+func (s *server) GetOwnerIdByHotelId(ctx context.Context, req *hotelpb.GetOwnerIdRequest) (*hotelpb.GetOwnerIdResponse, error) {
+	hotelId := req.GetId()
+	ownerId, err := s.ownerService.GetOwnerIdByHotelId(ctx, int(hotelId))
+	if err != nil {
+		return nil, err
+	}
+	return &hotelpb.GetOwnerIdResponse{OwnerId: int32(ownerId)}, nil
 }
 
 func startGRPCServer(roomService *service2.RoomService) error {

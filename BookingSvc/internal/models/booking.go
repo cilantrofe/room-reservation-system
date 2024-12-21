@@ -24,6 +24,12 @@ type BookingInfo struct {
 	EndDate   time.Time `json:"end_date"`
 }
 
+type User struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	ChatID   string `json:"chat_id"`
+}
+
 func (req *BookingRequest) ToBookingInfo(userID int) *BookingInfo {
 	return &BookingInfo{
 		UserID:    userID,
@@ -31,5 +37,13 @@ func (req *BookingRequest) ToBookingInfo(userID int) *BookingInfo {
 		HotelID:   req.HotelID,
 		StartDate: req.StartDate,
 		EndDate:   req.EndDate,
+	}
+}
+
+func NewUser(userID int, username string, chatID string) *User {
+	return &User{
+		UserID:   userID,
+		Username: username,
+		ChatID:   chatID,
 	}
 }
