@@ -3,17 +3,19 @@ package models
 import "time"
 
 type BookingRequest struct {
-	RoomID    int       `json:"room_id"`
-	HotelID   int       `json:"hotel_id"`
-	StartDate time.Time `json:"start_date"`
-	EndDate   time.Time `json:"end_date"`
-
+	RoomID          int    `json:"room_id"`
+	HotelID         int    `json:"hotel_id"`
 	HotelName       string `json:"hotel_name"`
 	RoomDescription string `json:"room_description"`
 	RoomNumber      int    `json:"room_number"`
+	RoomBasePrice   int    `json:"room_base_price"`
 
-	CardNumber string `json:"card_number"`
-	Amount     int    `json:"amount"`
+	CardNumber    string    `json:"card_number"`
+	CountOfPeople int       `json:"count_of_people"`
+	StartDate     time.Time `json:"start_date"`
+	EndDate       time.Time `json:"end_date"`
+
+	Amount int `json:"-"`
 }
 
 type BookingInfo struct {

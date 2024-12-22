@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/models"
-	"github.com/Quizert/room-reservation-system/AuthSvc/internal/storage"
+	"github.com/Quizert/room-reservation-system/AuthSvc/internal/myerror"
+	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"log"
@@ -33,10 +34,10 @@ func (r *Repository) RegisterUser(ctx context.Context, user *models.User) (int, 
 	var exists bool
 	err := r.db.QueryRow(ctx, query, user.ChatID).Scan(&exists)
 	if err != nil {
-		return 0, fmt.Errorf("error checking if user exists: %w", err)
+		return 0, fmt.Errorf("myerror checking if user exists: %w", err)
 	}
 	if exists {
-		return 0, fmt.Errorf("in register user: %w", storage.ErrUserExists)
+		return 0, fmt.Errorf("in register user: %w", myerror.ErrUserExists)
 	}
 
 	query = `
@@ -48,7 +49,7 @@ func (r *Repository) RegisterUser(ctx context.Context, user *models.User) (int, 
 	var id int
 	err = r.db.QueryRow(ctx, query, user.Username, user.ChatID, user.Password, user.IsHotelier).Scan(&id)
 	if err != nil {
-		return 0, fmt.Errorf("error inserting user: %w", err)
+		return 0, fmt.Errorf("myerror inserting user: %w", err)
 	}
 	return id, nil
 }
@@ -70,9 +71,9 @@ func (r *Repository) LoginUser(ctx context.Context, chatID string) (*models.User
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("in login User: %w", storage.ErrUserNotFound)
+			return nil, fmt.Errorf("in login User: %w", myerror.ErrUserNotFound)
 		}
-		return nil, fmt.Errorf("error login user: %w", err)
+		return nil, fmt.Errorf("myerror login user: %w", err)
 	}
 	return &user, nil
 }
@@ -86,9 +87,27 @@ func (r *Repository) IsHotelier(ctx context.Context, userID int) (bool, error) {
 	err := r.db.QueryRow(ctx, query, userID).Scan(&isHotelier)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, fmt.Errorf("in isHotelier User: %w", storage.ErrUserNotFound)
+			return false, fmt.Errorf("in isHotelier User: %w", myerror.ErrUserNotFound)
 		}
-		return false, fmt.Errorf("error isHotelier user: %w", err)
+		return false, fmt.Errorf("myerror isHotelier user: %w", err)
 	}
 	return isHotelier, nil
+}
+
+func (r *Repository) GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error) {
+	ownerID := request.OwnerID
+	query := `
+		SELECT Username, ChatID FROM users WHERE id = $1
+	`
+	var username string
+	var chatID string
+	err := r.db.QueryRow(ctx, query, ownerID).Scan(&username, &chatID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("in storage GetHotelierInformation: %w", myerror.ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("in storage GetHotelierInformation: %w", err)
+	}
+	response := &authpb.GetHotelierResponse{Username: username, ChatID: chatID}
+	return response, nil
 }

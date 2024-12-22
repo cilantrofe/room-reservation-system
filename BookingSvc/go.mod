@@ -3,7 +3,7 @@ module github.com/Quizert/room-reservation-system/BookingSvc
 go 1.23.3
 
 require (
-	github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241118151701-b3500a69d19c
+	github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241221001323-5994fb8e8146
 	github.com/Quizert/room-reservation-system/Libs v0.0.0-20241220134609-513337544b78
 	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx/v4 v4.18.3

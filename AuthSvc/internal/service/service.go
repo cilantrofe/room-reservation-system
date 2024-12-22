@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/jwt"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/models"
-	"github.com/Quizert/room-reservation-system/AuthSvc/internal/storage"
+	"github.com/Quizert/room-reservation-system/AuthSvc/internal/myerror"
+	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"time"
-)
-
-var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
 type AuthServiceImpl struct {
@@ -49,9 +46,9 @@ func (a *AuthServiceImpl) RegisterUser(ctx context.Context, user *models.User) (
 
 	id, err := a.storage.RegisterUser(ctx, user)
 	if err != nil {
-		if errors.Is(err, storage.ErrUserExists) {
+		if errors.Is(err, myerror.ErrUserExists) {
 			a.log.Warn("user already exists", zap.Error(err))
-			return 0, fmt.Errorf("%s: %w", "auth.RegisterUser", storage.ErrUserExists)
+			return 0, fmt.Errorf("%s: %w", "auth.RegisterUser", myerror.ErrUserExists)
 		}
 		a.log.Error("failed to register user", zap.Error(err))
 
@@ -70,9 +67,9 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 
 	UserExist, err := a.storage.LoginUser(ctx, user.ChatID)
 	if err != nil {
-		if errors.Is(err, storage.ErrUserNotFound) {
+		if errors.Is(err, myerror.ErrUserNotFound) {
 			a.log.Warn("user not found", zap.Error(err))
-			return "", fmt.Errorf("%s: %w", "auth.LoginUser", ErrInvalidCredentials)
+			return "", fmt.Errorf("%s: %w", "auth.LoginUser", myerror.ErrInvalidCredentials)
 		}
 
 		a.log.Error("failed to get user", zap.Error(err))
@@ -82,7 +79,7 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 	if err := bcrypt.CompareHashAndPassword([]byte(UserExist.Password), []byte(user.Password)); err != nil {
 		a.log.Warn("invalid credentials", zap.Error(err))
 
-		return "", fmt.Errorf("%s: %w", "auth.LoginUser", ErrInvalidCredentials)
+		return "", fmt.Errorf("%s: %w", "auth.LoginUser", myerror.ErrInvalidCredentials)
 	}
 
 	token, err := jwt.NewToken(UserExist, a.secret, a.tokenTTl)
@@ -101,7 +98,7 @@ func (a *AuthServiceImpl) IsHotelier(ctx context.Context, userID int) (bool, err
 
 	IsHotelier, err := a.storage.IsHotelier(ctx, userID)
 	if err != nil {
-		if errors.Is(err, storage.ErrUserNotFound) {
+		if errors.Is(err, myerror.ErrUserNotFound) {
 			a.log.Warn("user not found", zap.Error(err))
 			return false, fmt.Errorf("%s: %w", "auth.LoginUser", err)
 		}
@@ -110,4 +107,16 @@ func (a *AuthServiceImpl) IsHotelier(ctx context.Context, userID int) (bool, err
 
 	}
 	return IsHotelier, nil
+}
+
+func (a *AuthServiceImpl) GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error) {
+	response, err := a.storage.GetHotelierInformation(ctx, request)
+	if err != nil {
+		if errors.Is(err, myerror.ErrUserNotFound) {
+			a.log.Warn("user not found", zap.Error(err))
+			return nil, fmt.Errorf("%s: %w", "auth.LoginUser", myerror.ErrUserNotFound)
+		}
+		a.log.Error("failed to get hotelier information", zap.Error(err))
+	}
+	return response, nil
 }

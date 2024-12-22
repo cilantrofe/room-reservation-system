@@ -12,6 +12,10 @@ type HotelSvcClient struct {
 	conn *grpc.ClientConn
 }
 
+func (c *HotelSvcClient) GetOwnerIdByHotelId(ctx context.Context, req *hotelpb.GetOwnerIdRequest) (*hotelpb.GetOwnerIdResponse, error) {
+	return c.Api.GetOwnerIdByHotelId(ctx, req)
+}
+
 func (c *HotelSvcClient) GetRoomsByHotelId(ctx context.Context, req *hotelpb.GetRoomsRequest) (*hotelpb.GetRoomsResponse, error) {
 	return c.Api.GetRoomsByHotelId(ctx, req)
 }

@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/myerror"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"log"
 	"net/http"
@@ -15,7 +17,7 @@ import (
 type BookingService interface {
 	CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest, user *models.User) error
 	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error)
-	GetBookingsByHotelID(ctx context.Context, hotelID, userID int) (*models.BookingInfo, error)
+	GetBookingsByHotelID(ctx context.Context, hotelID, userID int) ([]*models.BookingInfo, error)
 	GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error)
 	UpdateBookingStatus(ctx context.Context, status string, bookingMessage *models.BookingMessage) error
 }
@@ -39,12 +41,16 @@ func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 
 	var bookingRequest models.BookingRequest
 	if err := json.NewDecoder(r.Body).Decode(&bookingRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest) //err.Error() - исправить
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
 	if err := b.bookingService.CreateBooking(ctx, &bookingRequest, user); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError) //Тут добавить обработку: бронирвание уже существует error
+		if errors.Is(err, myerror.ErrBookingAlreadyExists) {
+			http.Error(w, myerror.ErrBookingAlreadyExists.Error(), http.StatusConflict)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -57,7 +63,7 @@ func (b *BookingHandler) GetBookingByUserID(w http.ResponseWriter, r *http.Reque
 
 	userIDParams, err := strconv.Atoi(r.URL.Query().Get("user_id"))
 	if err != nil {
-		http.Error(w, "Invalid user_id", http.StatusBadRequest)
+		http.Error(w, "Invalid user id", http.StatusBadRequest)
 		return
 	}
 	if userIDParams != userID {
@@ -67,7 +73,7 @@ func (b *BookingHandler) GetBookingByUserID(w http.ResponseWriter, r *http.Reque
 
 	bookings, err := b.bookingService.GetBookingsByUserID(ctx, userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -87,7 +93,15 @@ func (b *BookingHandler) GetBookingByHotelID(w http.ResponseWriter, r *http.Requ
 
 	bookings, err := b.bookingService.GetBookingsByHotelID(ctx, hotelID, userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if errors.Is(err, myerror.ErrForbiddenAccess) {
+			http.Error(w, "forbidden access", http.StatusForbidden)
+			return
+		} else if errors.Is(err, myerror.ErrHotelNotFound) {
+			http.Error(w, "hotel not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -132,21 +146,23 @@ func (b *BookingHandler) HandlePaymentWebHook(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	var paymentResponse models.PaymentResponse
 	if err := json.NewDecoder(r.Body).Decode(&paymentResponse); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest) //err.Error() - исправить
+		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	log.Println(paymentResponse)
+
 	err := b.bookingService.UpdateBookingStatus(ctx, paymentResponse.Status, paymentResponse.MetaData)
 
 	switch paymentResponse.Status {
 	case "success":
 		if err != nil {
 			log.Println("handler UpdateBookingStatusSuccess: ", err.Error())
-			http.Error(w, "internal server error", http.StatusInternalServerError) //err.Error() - исправить
+			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("success booking!"))
+	case "failed":
+
 	}
 }

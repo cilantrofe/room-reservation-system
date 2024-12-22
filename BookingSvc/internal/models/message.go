@@ -2,6 +2,7 @@ package models
 
 type BookingMessage struct {
 	BookingID       int    `json:"booking_id"`
+	HotelID         int    `json:"hotel_id"`
 	HotelName       string `json:"hotel_name"`
 	RoomDescription string `json:"room_description"`
 	RoomNumber      int    `json:"room_number"`
@@ -12,6 +13,7 @@ type BookingMessage struct {
 func (req *BookingRequest) ToBookingMessage(bookingID int, username, chatID string) *BookingMessage {
 	return &BookingMessage{
 		BookingID:       bookingID,
+		HotelID:         req.HotelID,
 		HotelName:       req.HotelName,
 		RoomDescription: req.RoomDescription,
 		RoomNumber:      req.RoomNumber,
