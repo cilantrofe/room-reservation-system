@@ -51,12 +51,12 @@ func (p *PaymentService) ProcessPayment(ctx context.Context, req *models.Payment
 		сtx := context.Background()
 		err := p.sendWebHook(сtx, req.WebHookURL, paymentResponse)
 		if err != nil {
-			return fmt.Errorf("payment process error: %w", err)
+			return fmt.Errorf("payment process myerror: %w", err)
 		}
 	default:
 		err := p.sendWebHook(ctx, req.WebHookURL, paymentResponse)
 		if err != nil {
-			return fmt.Errorf("payment process error: %w", err)
+			return fmt.Errorf("payment process myerror: %w", err)
 		}
 	}
 	return nil

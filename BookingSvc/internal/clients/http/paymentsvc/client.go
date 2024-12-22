@@ -26,22 +26,22 @@ func NewPaymentSvcClient(baseUrl string) *Client {
 func (c *Client) CreatePaymentRequest(ctx context.Context, paymentRequest *models.PaymentRequest) error {
 	jsonRequest, err := json.Marshal(paymentRequest)
 	if err != nil {
-		return fmt.Errorf("err in marshaling json: %w", err)
+		return fmt.Errorf("myerror in marshaling json: %w", err)
 	}
 	log.Println("JSON PaymentRequest: ", string(jsonRequest))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseUrl, bytes.NewBuffer(jsonRequest))
 	if err != nil {
-		return fmt.Errorf("err in creating request: %w", err)
+		return fmt.Errorf("myerror in creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("err in sending request: %w", err)
+		return fmt.Errorf("myerror in sending request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("err in payment service status: %s", resp.Status)
+		return fmt.Errorf("myerror in payment service status: %s", resp.Status)
 	}
 	return nil
 }

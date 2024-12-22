@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/config"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/controller"
+	grpcserver "github.com/Quizert/room-reservation-system/AuthSvc/internal/controller/grpc"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/storage/postgres"
+	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,9 +23,10 @@ import (
 )
 
 type App struct {
-	server *http.Server
-	dbPool *pgxpool.Pool
-	log    *zap.Logger
+	server     *http.Server
+	GRPCServer *grpcserver.Server
+	dbPool     *pgxpool.Pool
+	log        *zap.Logger
 }
 
 func NewApp() *App {
@@ -34,18 +39,31 @@ func NewDatabasePool(ctx context.Context, cfg *config.Config, logger *zap.Logger
 	return pgxpool.Connect(ctx, connString)
 }
 
+func (a *App) ListenGRPCServer() error {
+	grpcServer := grpc.NewServer()
+
+	authpb.RegisterAuthServiceServer(grpcServer, a.GRPCServer)
+
+	lis, err := net.Listen("tcp", a.GRPCServer.Addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen: %v", err)
+	}
+
+	return grpcServer.Serve(lis)
+}
+
 func (a *App) Init(ctx context.Context) error {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		// Тут можно сделать MustLoad ля-ля
-		return fmt.Errorf("error initializing zap logger: %v", err)
+		return fmt.Errorf("myerror initializing zap logger: %v", err)
 	}
 	a.log = logger
 
 	a.log.Info("Loading configuration")
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return fmt.Errorf("error loading config: %v", err)
+		return fmt.Errorf("myerror loading config: %v", err)
 	}
 
 	dbPool, err := NewDatabasePool(ctx, cfg, a.log)
@@ -58,7 +76,7 @@ func (a *App) Init(ctx context.Context) error {
 	tokenTTLString := cfg.TokenTTl
 	tokenTTL, err := time.ParseDuration(tokenTTLString)
 	if err != nil {
-		return fmt.Errorf("error parsing duration: %w", err)
+		return fmt.Errorf("myerror parsing duration: %w", err)
 
 	}
 	secret := cfg.Secret
@@ -72,6 +90,7 @@ func (a *App) Init(ctx context.Context) error {
 		Addr:    ":" + cfg.HTTPPort,
 		Handler: route,
 	}
+	a.GRPCServer = grpcserver.NewServer(authService, ":"+cfg.GRPCPort)
 	return nil
 }
 
@@ -93,6 +112,15 @@ func (a *App) Start(ctx context.Context) error {
 	})
 
 	group.Go(func() error {
+		if err := a.ListenGRPCServer(); err != nil {
+			a.log.Error("Error in ListenAndServe", zap.Error(err))
+			return fmt.Errorf("failed to serve GRPC server: %w", err)
+		}
+		a.log.Info("GRPC server stopped")
+		return nil
+	})
+
+	group.Go(func() error {
 		<-groupCtx.Done()
 		return a.Stop(context.Background())
 	})
@@ -110,7 +138,7 @@ func (a *App) Stop(ctx context.Context) error {
 	defer cancel()
 	a.log.Info("Shutting down HTTP server")
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
-		a.log.Error("HTTP server shutdown error", zap.Error(err))
+		a.log.Error("HTTP server shutdown myerror", zap.Error(err))
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 	a.log.Info("HTTP server shutdown gracefully")

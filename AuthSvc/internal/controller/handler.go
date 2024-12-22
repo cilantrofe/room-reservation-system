@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/models"
-	"github.com/Quizert/room-reservation-system/AuthSvc/internal/service"
-	"github.com/Quizert/room-reservation-system/AuthSvc/internal/storage"
+	"github.com/Quizert/room-reservation-system/AuthSvc/internal/myerror"
+	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"log"
 	"net/http"
 )
@@ -15,6 +15,7 @@ type AuthService interface {
 	RegisterUser(ctx context.Context, user *models.User) (int, error)
 	LoginUser(ctx context.Context, user *models.User) (string, error)
 	IsHotelier(ctx context.Context, userID int) (bool, error)
+	GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error)
 }
 
 type AuthHandler struct {
@@ -34,7 +35,7 @@ func (a *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err := a.authService.RegisterUser(ctx, &user)
 	if err != nil {
-		if errors.Is(err, storage.ErrUserExists) {
+		if errors.Is(err, myerror.ErrUserExists) {
 			http.Error(w, "User already exists", http.StatusConflict)
 			return
 		}
@@ -54,8 +55,8 @@ func (a *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	token, err := a.authService.LoginUser(ctx, &user)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidCredentials) {
-			http.Error(w, service.ErrInvalidCredentials.Error(), http.StatusNotFound)
+		if errors.Is(err, myerror.ErrInvalidCredentials) {
+			http.Error(w, myerror.ErrInvalidCredentials.Error(), http.StatusNotFound)
 			return
 		}
 		log.Println(err)

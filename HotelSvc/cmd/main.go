@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"github.com/Quizert/room-reservation-system/HotelSvc/internal/myerror"
 	postgresql2 "github.com/Quizert/room-reservation-system/HotelSvc/internal/repository/postgresql"
 	service2 "github.com/Quizert/room-reservation-system/HotelSvc/internal/service"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log"
 	"net"
 	"net/http"
@@ -42,6 +46,9 @@ func main() {
 
 	roomService := service2.NewRoomService(roomRepo)
 
+	ownerRepo := postgresql2.NewPostgresOwnerRepository(db)
+
+	ownerService := service2.NewOwnerService(ownerRepo)
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -55,7 +62,7 @@ func main() {
 	// Запуск gRPC сервера в отдельной горутине
 	go func() {
 		defer wg.Done()
-		if err := startGRPCServer(roomService); err != nil {
+		if err := startGRPCServer(roomService, ownerService); err != nil {
 			log.Fatalf("Failed to start gRPC server: %v", err)
 		}
 	}()
@@ -63,12 +70,12 @@ func main() {
 	// Ожидание завершения серверов
 	wg.Wait()
 
-	//if err := startHTTPServer(hotelService); err != nil {
-	//	log.Fatalf("Failed to start HTTP server: %v", err)
+	//if myerror := startHTTPServer(hotelService); myerror != nil {
+	//	log.Fatalf("Failed to start HTTP server: %v", myerror)
 	//}
 
-	//if err := startGRPCServer(roomService); err != nil {
-	//	log.Fatalf("Failed to start GRPC server: %v", err)
+	//if myerror := startGRPCServer(roomService); myerror != nil {
+	//	log.Fatalf("Failed to start GRPC server: %v", myerror)
 	//}
 }
 
@@ -116,12 +123,15 @@ func (s *server) GetOwnerIdByHotelId(ctx context.Context, req *hotelpb.GetOwnerI
 	hotelId := req.GetId()
 	ownerId, err := s.ownerService.GetOwnerIdByHotelId(ctx, int(hotelId))
 	if err != nil {
-		return nil, err
+		if errors.Is(err, myerror.ErrHotelNotFound) {
+			return nil, status.Error(codes.NotFound, "hotel not found")
+		}
+		return nil, fmt.Errorf("in server: %w", err)
 	}
 	return &hotelpb.GetOwnerIdResponse{OwnerId: int32(ownerId)}, nil
 }
 
-func startGRPCServer(roomService *service2.RoomService) error {
+func startGRPCServer(roomService *service2.RoomService, ownerService *service2.OwnerService) error {
 	addr := ":" + os.Getenv("HOTEL_GRPC_PORT")
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -129,7 +139,7 @@ func startGRPCServer(roomService *service2.RoomService) error {
 	}
 
 	s := grpc.NewServer()
-	hotelpb.RegisterHotelServiceServer(s, &server{roomService: roomService})
+	hotelpb.RegisterHotelServiceServer(s, &server{roomService: roomService, ownerService: ownerService})
 
 	reflection.Register(s)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/myerror"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"time"
 )
@@ -42,7 +43,7 @@ func (r *Repository) GetUnavailableRoomsByHotelId(ctx context.Context, hotelID i
 	}
 	// Проверка на ошибки при итерации
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows iteration error: %w", err)
+		return nil, fmt.Errorf("rows iteration myerror: %w", err)
 	}
 	return unavailableRoomsID, nil
 }
@@ -68,7 +69,7 @@ func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*mo
 		bookings = append(bookings, &booking)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows iteration error: %w", err)
+		return nil, fmt.Errorf("rows iteration myerror: %w", err)
 	}
 	return bookings, nil
 }
@@ -84,16 +85,6 @@ func (r *Repository) UpdateBookingStatus(ctx context.Context, status string, boo
 		return fmt.Errorf("failed to update booking status: %w", err)
 	}
 	return nil
-}
-
-func (r *Repository) GetBookingsByHotelID(ctx context.Context, bookingID int) (*models.BookingInfo, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (r *Repository) DeleteBooking(ctx context.Context, bookingID int) error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (r *Repository) CreateBooking(ctx context.Context, booking *models.BookingInfo) (int, error) {
@@ -122,7 +113,7 @@ func (r *Repository) CreateBooking(ctx context.Context, booking *models.BookingI
 			return -1, fmt.Errorf("failed to scan room ID: %w", err)
 		}
 		if roomID == booking.RoomID {
-			return -1, fmt.Errorf("booking already exists")
+			return -1, fmt.Errorf("in storage CreateBooking: %w", myerror.ErrBookingAlreadyExists)
 		}
 	}
 

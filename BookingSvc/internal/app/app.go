@@ -55,7 +55,7 @@ func NewPaymentClient(cfg *config.Config, logger *zap.Logger) *paymentClient.Cli
 func (a *App) Init(ctx context.Context) error {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		return fmt.Errorf("error initializing zap logger: %v", err)
+		return fmt.Errorf("myerror initializing zap logger: %v", err)
 	}
 	a.log = logger
 
@@ -128,7 +128,7 @@ func (a *App) Stop(ctx context.Context) error {
 	defer cancel()
 	a.log.Info("Shutting down HTTP server")
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
-		a.log.Error("HTTP server shutdown error", zap.Error(err))
+		a.log.Error("HTTP server shutdown myerror", zap.Error(err))
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 	a.log.Info("HTTP server shutdown gracefully")
