@@ -29,8 +29,8 @@ type AuthSvcClient interface {
 	GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error)
 }
 
-func NewBookingServiceImpl(db Storage, producer MessageProducer, hotelClient HotelClient, paymentClient PaymentSystemClient, logger *zap.Logger) *BookingServiceImpl {
-	return &BookingServiceImpl{db, producer, hotelClient, paymentClient, logger}
+func NewBookingServiceImpl(db Storage, producer MessageProducer, hotelClient HotelClient, authClient AuthSvcClient, paymentClient PaymentSystemClient, logger *zap.Logger) *BookingServiceImpl {
+	return &BookingServiceImpl{storage: db, messageProducer: producer, hotelSvcClient: hotelClient, authSvcClient: authClient, paymentSystemClient: paymentClient, log: logger}
 }
 
 func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest, user *models.User) error {
@@ -148,8 +148,8 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingSta
 			return fmt.Errorf("error SendMessage: %w", err)
 		}
 
-		req := &hotelpb.GetOwnerIdRequest{Id: int32(bookingMessage.HotelID)}
-		response, err := b.hotelSvcClient.GetOwnerIdByHotelId(ctx, req)
+		hotelReq := &hotelpb.GetOwnerIdRequest{Id: int32(bookingMessage.HotelID)}
+		hotelResponse, err := b.hotelSvcClient.GetOwnerIdByHotelId(ctx, hotelReq)
 		if err != nil {
 			st, ok := status.FromError(err)
 			if ok && st.Code() == codes.NotFound {
@@ -159,8 +159,19 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingSta
 			b.log.Error("error in service gRPC GetBookingsByHotelID:", zap.Error(err))
 			return fmt.Errorf("error in service GetOwnerIdByHotelId: %w", err)
 		}
+		authReq := &authpb.GetHotelierRequest{OwnerID: hotelResponse.OwnerId}
+		authResponse, err := b.authSvcClient.GetHotelierInformation(ctx, authReq)
+		if err != nil {
+			st, ok := status.FromError(err)
+			if ok && st.Code() == codes.NotFound {
+				b.log.Warn("error in service gRPC GetBookingsByHotelID:", zap.Error(err))
+				return fmt.Errorf("error in service GetOwnerIdByHotelId: %w", myerror.ErrHotelNotFound)
+			}
+			b.log.Error("error in service gRPC GetBookingsByHotelID:", zap.Error(err))
+			return fmt.Errorf("error in service GetOwnerIdByHotelId: %w", err)
+		}
 
-		hotelierMessage := bookingMessage.ToHotelierMessage("hotelier name", "123123")
+		hotelierMessage := bookingMessage.ToHotelierMessage(authResponse.Username, authResponse.ChatID)
 
 		kafkaHotelierMessage, err := json.Marshal(hotelierMessage)
 		if err != nil {

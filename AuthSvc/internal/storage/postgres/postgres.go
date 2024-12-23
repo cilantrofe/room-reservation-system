@@ -9,7 +9,6 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"log"
 )
 
 type Repository struct {
@@ -23,31 +22,31 @@ func NewPostgresRepository(db *pgxpool.Pool) *Repository {
 }
 
 func (r *Repository) RegisterUser(ctx context.Context, user *models.User) (int, error) {
-	log.Println("--------------------", user.ChatID, "---------------------")
-	query := `
-		SELECT EXISTS (
-			SELECT ID 
-			FROM users
-			WHERE ChatID = $1
-		);
-	`
-	var exists bool
-	err := r.db.QueryRow(ctx, query, user.ChatID).Scan(&exists)
-	if err != nil {
-		return 0, fmt.Errorf("myerror checking if user exists: %w", err)
-	}
-	if exists {
-		return 0, fmt.Errorf("in register user: %w", myerror.ErrUserExists)
-	}
+	//log.Println("--------------------", user.ChatID, "---------------------")
+	//query := `
+	//	SELECT EXISTS (
+	//		SELECT ID
+	//		FROM users
+	//		WHERE ChatID = $1
+	//	);
+	//`
+	//var exists bool
+	//err := r.db.QueryRow(ctx, query, user.ChatID).Scan(&exists)
+	//if err != nil {
+	//	return 0, fmt.Errorf("myerror checking if user exists: %w", err)
+	//}
+	//if exists {
+	//	return 0, fmt.Errorf("in register user: %w", myerror.ErrUserExists)
+	//}
 
-	query = `
+	query := `
 		INSERT INTO users (Username, ChatID, Password, IsHotelier)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id;
 	`
 
 	var id int
-	err = r.db.QueryRow(ctx, query, user.Username, user.ChatID, user.Password, user.IsHotelier).Scan(&id)
+	err := r.db.QueryRow(ctx, query, user.Username, user.ChatID, user.Password, user.IsHotelier).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("myerror inserting user: %w", err)
 	}
