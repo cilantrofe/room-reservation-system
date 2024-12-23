@@ -7,15 +7,15 @@ import (
 )
 
 func main() {
-	service := app.NewApp()
+	app := app.NewApp()
 	ctxWithCancel, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err := service.Init(ctxWithCancel)
+	err := app.Init(ctxWithCancel)
 	if err != nil {
 		return
 	}
 
-	err = service.Start(ctxWithCancel)
+	err = app.Start(ctxWithCancel)
 	if err != nil {
 		fmt.Println(err.Error())
 		return

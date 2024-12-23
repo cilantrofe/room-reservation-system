@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	grpc "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc/hotelsvc"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc"
 	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/kafka"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/config"
@@ -42,9 +42,14 @@ func NewKafkaProducer(cfg *config.Config, logger *zap.Logger) *kafka.Producer {
 	return kafka.NewProducer([]string{cfg.KafkaBroker}, cfg.KafkaTopicClient, cfg.KafkaTopicHotel)
 }
 
+func NewAuthClient(cfg *config.Config, logger *zap.Logger) (*grpc.AuthSvcClient, error) {
+	logger.Info("Initializing Auth service client", zap.String("host", cfg.GRPCAuthHost), zap.String("port", cfg.GRPCAuthPort))
+	return grpc.NewAuthClient(cfg.GRPCAuthHost, cfg.GRPCAuthPort)
+}
+
 func NewHotelClient(cfg *config.Config, logger *zap.Logger) (*grpc.HotelSvcClient, error) {
-	logger.Info("Initializing Hotel service client", zap.String("host", cfg.GRPCHost), zap.String("port", cfg.GRPCPort))
-	return grpc.NewHotelClient(cfg.GRPCHost, cfg.GRPCPort)
+	logger.Info("Initializing Hotel service client", zap.String("host", cfg.GRPCHotelHost), zap.String("port", cfg.GRPCHotelPort))
+	return grpc.NewHotelClient(cfg.GRPCHotelHost, cfg.GRPCHotelPort)
 }
 
 func NewPaymentClient(cfg *config.Config, logger *zap.Logger) *paymentClient.Client {
@@ -73,6 +78,10 @@ func (a *App) Init(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize hotel client: %w", err)
 	}
 
+	authClient, err := NewAuthClient(cfg, a.log)
+	if err != nil {
+		return fmt.Errorf("failed to initialize auth client: %w", err)
+	}
 	paymentSvcClient := NewPaymentClient(cfg, a.log)
 	dbPool, err := NewDatabasePool(ctx, cfg, a.log)
 	if err != nil {
@@ -81,7 +90,7 @@ func (a *App) Init(ctx context.Context) error {
 	repo := postgres.NewPostgresRepository(dbPool)
 	a.dbPool = dbPool
 
-	service := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, paymentSvcClient, a.log)
+	service := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, authClient, paymentSvcClient, a.log)
 	bookingHandler := handler.NewBookingHandler(service)
 	route := handler.SetupRoutes(bookingHandler)
 

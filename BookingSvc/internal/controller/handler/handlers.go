@@ -41,7 +41,7 @@ func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 
 	var bookingRequest models.BookingRequest
 	if err := json.NewDecoder(r.Body).Decode(&bookingRequest); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

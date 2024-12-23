@@ -74,6 +74,32 @@ func (r *Repository) GetBookingsByUserID(ctx context.Context, userID int) ([]*mo
 	return bookings, nil
 }
 
+func (r *Repository) GetBookingsByHotelID(ctx context.Context, hotelID int) ([]*models.BookingInfo, error) {
+	bookings := make([]*models.BookingInfo, 0)
+	query := `
+        SELECT UserID, RoomID, HotelID, StartDate, EndDate
+        FROM bookings
+        WHERE UserID = $1
+    `
+	rows, err := r.db.Query(ctx, query, hotelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	var booking models.BookingInfo
+	for rows.Next() {
+		if err := rows.Scan(&booking.UserID, &booking.RoomID, &booking.HotelID, &booking.StartDate, &booking.EndDate); err != nil {
+			return nil, fmt.Errorf("failed to scan booking: %w", err)
+		}
+		bookings = append(bookings, &booking)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration myerror: %w", err)
+	}
+	return bookings, nil
+}
+
 func (r *Repository) UpdateBookingStatus(ctx context.Context, status string, bookingID int) error {
 	query := `
 		UPDATE bookings

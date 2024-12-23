@@ -17,7 +17,7 @@ type Server struct {
 }
 
 func NewServer(authSvc controller.AuthService, addr string) *Server {
-	return &Server{authSvc: authSvc, addr: addr}
+	return &Server{authSvc: authSvc, Addr: addr}
 }
 
 func (s *Server) GetHotelierInformation(ctx context.Context, req *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error) {

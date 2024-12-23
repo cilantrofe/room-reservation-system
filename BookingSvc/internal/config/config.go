@@ -10,8 +10,10 @@ type Config struct {
 	DBUser           string
 	DBPassword       string
 	DBName           string
-	GRPCHost         string
-	GRPCPort         string
+	GRPCHotelHost    string
+	GRPCHotelPort    string
+	GRPCAuthHost     string
+	GRPCAuthPort     string
 	HTTPPort         string
 	KafkaBroker      string
 	KafkaTopicClient string
@@ -26,8 +28,10 @@ func LoadConfig() (*Config, error) {
 		DBUser:           os.Getenv("BOOKING_DB_USER"),
 		DBPassword:       os.Getenv("BOOKING_DB_PASSWORD"),
 		DBName:           os.Getenv("BOOKING_DB_NAME"),
-		GRPCHost:         os.Getenv("BOOKING_GRPC_HOST"),
-		GRPCPort:         os.Getenv("BOOKING_GRPC_PORT"),
+		GRPCHotelHost:    os.Getenv("HOTEL_GRPC_HOST"),
+		GRPCHotelPort:    os.Getenv("HOTEL_GRPC_PORT"),
+		GRPCAuthHost:     os.Getenv("AUTH_GRPC_HOST"),
+		GRPCAuthPort:     os.Getenv("AUTH_GRPC_PORT"),
 		HTTPPort:         os.Getenv("BOOKING_HTTP_PORT"),
 		KafkaBroker:      os.Getenv("KAFKA_BROKER"),
 		KafkaTopicClient: os.Getenv("KAFKA_TOPIC_CLIENT"),
