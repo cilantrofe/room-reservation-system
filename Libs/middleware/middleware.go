@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"github.com/Quizert/room-reservation-system/Libs/metrics"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
 	"net/http"
@@ -19,6 +20,9 @@ func NewMiddleware(secret string) *Middleware {
 
 func (m *Middleware) Auth(next http.HandlerFunc, clientHotelierAccess bool) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			metrics.RecordMiddlewaresMetrics()
+		}()
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "Authorization missing", http.StatusUnauthorized)
@@ -45,6 +49,7 @@ func (m *Middleware) Auth(next http.HandlerFunc, clientHotelierAccess bool) http
 			userID, ok := claims["user_id"].(float64)
 			if !ok {
 				http.Error(w, "invalid user id", http.StatusUnauthorized)
+				return
 			}
 			isHotelier, _ := claims["is_hotelier"].(bool)
 			if isHotelier != clientHotelierAccess {
@@ -58,7 +63,6 @@ func (m *Middleware) Auth(next http.HandlerFunc, clientHotelierAccess bool) http
 			ctx = context.WithValue(ctx, "is_hotelier", isHotelier) //TODO: Мейби не нужно
 			ctx = context.WithValue(ctx, "username", username)
 			ctx = context.WithValue(ctx, "chat_id", chatID)
-
 			next(w, r.WithContext(ctx))
 		}
 	})
