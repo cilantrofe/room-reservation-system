@@ -15,6 +15,7 @@ type Config struct {
 	GRPCAuthHost     string
 	GRPCAuthPort     string
 	HTTPPort         string
+	HTTPMetricPort   string
 	KafkaBroker      string
 	KafkaTopicClient string
 	KafkaTopicHotel  string
@@ -33,6 +34,7 @@ func LoadConfig() (*Config, error) {
 		GRPCAuthHost:     os.Getenv("AUTH_GRPC_HOST"),
 		GRPCAuthPort:     os.Getenv("AUTH_GRPC_PORT"),
 		HTTPPort:         os.Getenv("BOOKING_HTTP_PORT"),
+		HTTPMetricPort:   os.Getenv("BOOKING_HTTP_METRIC_PORT"),
 		KafkaBroker:      os.Getenv("KAFKA_BROKER"),
 		KafkaTopicClient: os.Getenv("KAFKA_TOPIC_CLIENT"),
 		KafkaTopicHotel:  os.Getenv("KAFKA_TOPIC_HOTEL"),

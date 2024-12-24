@@ -11,6 +11,7 @@ import (
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller/handler"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/storage/postgres"
+	"github.com/Quizert/room-reservation-system/Libs/metrics"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -22,9 +23,10 @@ import (
 )
 
 type App struct {
-	server *http.Server
-	dbPool *pgxpool.Pool
-	log    *zap.Logger
+	mainServer   *http.Server
+	metricServer *http.Server
+	dbPool       *pgxpool.Pool
+	log          *zap.Logger
 }
 
 func NewApp() *App {
@@ -90,20 +92,25 @@ func (a *App) Init(ctx context.Context) error {
 	repo := postgres.NewPostgresRepository(dbPool)
 	a.dbPool = dbPool
 
-	service := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, authClient, paymentSvcClient, a.log)
-	bookingHandler := handler.NewBookingHandler(service)
-	route := handler.SetupRoutes(bookingHandler)
+	mainService := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, authClient, paymentSvcClient, a.log)
+	bookingHandler := handler.NewBookingHandler(mainService)
 
-	a.server = &http.Server{
+	mainRoute := handler.SetupRoutes(bookingHandler)
+	metricRoute := metrics.SetupMetricsRoute()
+	a.mainServer = &http.Server{
 		Addr:    ":" + cfg.HTTPPort,
-		Handler: route,
+		Handler: mainRoute,
+	}
+	a.metricServer = &http.Server{
+		Addr:    ":" + cfg.HTTPMetricPort,
+		Handler: metricRoute,
 	}
 	a.log.Debug("Initialization complete")
 	return nil
 }
 
 func (a *App) Start(ctx context.Context) error {
-	a.log.Info("Starting HTTP server")
+	a.log.Info("Starting HTTP mainServer")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
@@ -111,11 +118,19 @@ func (a *App) Start(ctx context.Context) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	group.Go(func() error {
-		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			a.log.Error("Error in ListenAndServe", zap.Error(err))
-			return fmt.Errorf("failed to serve HTTP server: %w", err)
+		if err := a.metricServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			a.log.Error("Error in ListenAndServe metricServer", zap.Error(err))
+			return fmt.Errorf("failed to serve HTTP metricServer: %w", err)
 		}
-		a.log.Info("HTTP server stopped")
+		a.log.Info("HTTP mainServer stopped")
+		return nil
+	})
+	group.Go(func() error {
+		if err := a.mainServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			a.log.Error("Error in ListenAndServe", zap.Error(err))
+			return fmt.Errorf("failed to serve HTTP mainServer: %w", err)
+		}
+		a.log.Info("HTTP mainServer stopped")
 		return nil
 	})
 
@@ -135,12 +150,12 @@ func (a *App) Start(ctx context.Context) error {
 func (a *App) Stop(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	a.log.Info("Shutting down HTTP server")
-	if err := a.server.Shutdown(shutdownCtx); err != nil {
-		a.log.Error("HTTP server shutdown myerror", zap.Error(err))
-		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
+	a.log.Info("Shutting down HTTP mainServer")
+	if err := a.mainServer.Shutdown(shutdownCtx); err != nil {
+		a.log.Error("HTTP mainServer shutdown myerror", zap.Error(err))
+		return fmt.Errorf("failed to shutdown HTTP mainServer: %w", err)
 	}
-	a.log.Info("HTTP server shutdown gracefully")
+	a.log.Info("HTTP mainServer shutdown gracefully")
 
 	if a.dbPool != nil {
 		a.dbPool.Close()
