@@ -4,7 +4,7 @@ go 1.23.3
 
 require (
 	github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241225001505-0466fa07abfe
-	github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225001505-0466fa07abfe
+	github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225012223-facc3e6aaa89
 	github.com/golang/mock v1.6.0
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/segmentio/kafka-go v0.4.47
@@ -34,7 +34,7 @@ require (
 )
 
 require (
-	github.com/Quizert/room-reservation-system/AuthSvc v0.0.0-20241222021346-c333398f5c3b
+	github.com/Quizert/room-reservation-system/AuthSvc v0.0.0-20241225170309-8bb1f867d49b
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
