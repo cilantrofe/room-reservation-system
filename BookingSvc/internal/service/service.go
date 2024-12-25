@@ -8,10 +8,9 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/myerror"
+	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"go.opentelemetry.io/otel/attribute"
 	_ "go.opentelemetry.io/otel/attribute"
-
-	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -192,6 +191,8 @@ func (b *BookingServiceImpl) GetAvailableRooms(ctx context.Context, hotelID int,
 }
 
 func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingStatus string, bookingMessage *models.BookingMessage) error {
+	ctx, span := b.tracer.Start(ctx, "BookingService.GetAvailableRooms")
+	defer span.End()
 	b.log.With(
 		zap.String("Layer", "service: UpdateBookingStatus"),
 		zap.String("status", BookingStatus),

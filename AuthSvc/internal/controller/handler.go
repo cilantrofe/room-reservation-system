@@ -8,6 +8,7 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/myerror"
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/Quizert/room-reservation-system/Libs/metrics"
+	"go.opentelemetry.io/otel/trace"
 	"net/http"
 	"time"
 )
@@ -20,13 +21,17 @@ type AuthService interface {
 
 type AuthHandler struct {
 	authService AuthService
+	tracer      trace.Tracer
 }
 
-func NewAuthHandler(authService AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService AuthService, trace trace.Tracer) *AuthHandler {
+	return &AuthHandler{authService: authService, tracer: trace}
 }
 
 func (a *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	ctx, span := a.tracer.Start(r.Context(), "Handler.CreateBooking")
+	defer span.End()
+
 	start := time.Now()
 	status := http.StatusCreated
 	defer func() {
@@ -34,15 +39,18 @@ func (a *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		metrics.RecordHttpMetrics(r.Method, "/auth/register", http.StatusText(status), duration)
 	}()
 
-	ctx := r.Context()
 	var user models.User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		span.RecordError(err)
+
 		status = http.StatusBadRequest
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 	_, err := a.authService.RegisterUser(ctx, &user)
 	if err != nil {
+		span.RecordError(err)
+
 		if errors.Is(err, myerror.ErrUserExists) {
 			status = http.StatusConflict
 			http.Error(w, "User already exists", http.StatusConflict)
@@ -52,6 +60,7 @@ func (a *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	span.AddEvent("Register user success")
 	w.WriteHeader(http.StatusCreated)
 }
 

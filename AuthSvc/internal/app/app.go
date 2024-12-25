@@ -8,6 +8,7 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/controller"
 	grpcserver "github.com/Quizert/room-reservation-system/AuthSvc/internal/controller/grpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"log"
 
@@ -48,7 +49,6 @@ func NewDatabasePool(ctx context.Context, cfg *config.Config, logger *zap.Logger
 	return pgxpool.Connect(ctx, connString)
 }
 
-// (2) Инициализация TracerProvider (Jaeger)
 func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, error) {
 	exp, err := jaeger.New(
 		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)),
@@ -57,6 +57,8 @@ func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, er
 		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
 	}
 
+	fmt.Println("Jaeger exporter initialized successfully")
+
 	tp := trace.NewTracerProvider(
 		trace.WithBatcher(exp),
 		trace.WithResource(resource.NewSchemaless(
@@ -64,14 +66,16 @@ func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, er
 		)),
 	)
 
-	// Устанавливаем провайдер глобально, чтобы otelgrpc (и любые другие пакеты) могли брать его по умолчанию
+	// Устанавливаем провайдер глобально
 	otel.SetTracerProvider(tp)
+
+	// Устанавливаем пропагатор контекста
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	return tp, nil
 }
 
 func (a *App) ListenGRPCServer() error {
-	// (2) Включаем interceptors, чтобы получать спаны при входящих gRPC-вызовах
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
@@ -124,7 +128,8 @@ func (a *App) Init(ctx context.Context) error {
 	}
 	a.tracerProvider = tp // сохраняем, чтобы закрыть позже
 
-	authHandler := controller.NewAuthHandler(authService)
+	tracer := a.tracerProvider.Tracer("AuthSvc")
+	authHandler := controller.NewAuthHandler(authService, tracer)
 	route := controller.SetupRoutes(authHandler)
 
 	a.server = &http.Server{
@@ -133,7 +138,7 @@ func (a *App) Init(ctx context.Context) error {
 	}
 
 	// gRPC сервер
-	a.GRPCServer = grpcserver.NewServer(authService, ":"+cfg.GRPCPort)
+	a.GRPCServer = grpcserver.NewServer(authService, ":"+cfg.GRPCPort, tracer)
 
 	return nil
 }

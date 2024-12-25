@@ -6,7 +6,6 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/controller"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/myerror"
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,20 +14,18 @@ import (
 type Server struct {
 	authpb.UnimplementedAuthServiceServer
 	authSvc controller.AuthService
+	trace   trace.Tracer
 	Addr    string
 }
 
-func NewServer(authSvc controller.AuthService, addr string) *Server {
-	return &Server{authSvc: authSvc, Addr: addr}
+func NewServer(authSvc controller.AuthService, addr string, trace trace.Tracer) *Server {
+	return &Server{authSvc: authSvc, Addr: addr, trace: trace}
 }
 
 func (s *Server) GetHotelierInformation(ctx context.Context, req *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error) {
-	span := trace.SpanFromContext(ctx)
+	// Начинаем новый спан, контекст автоматически будет извлечён из интерцептора
+	ctx, span := s.trace.Start(ctx, "GetHotelierInformation")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.Int("request.chat_id", int(req.GetOwnerID())),
-	)
 
 	response, err := s.authSvc.GetHotelierInformation(ctx, req)
 	if err != nil {
