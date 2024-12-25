@@ -4,8 +4,12 @@ github.com/Quizert/room-reservation-system/AuthSvc v0.0.0-20241222021346-c333398
 github.com/Quizert/room-reservation-system/AuthSvc v0.0.0-20241222021346-c333398f5c3b/go.mod h1:cJda+YI/0TgFQbn5g7mR/5oj/jZ18dZ4K/Fi3q0SnUY=
 github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241221001323-5994fb8e8146 h1:qfStbqHCnIXd45h6QO34jVIaXbz6pDp+6IyOYjd6vLw=
 github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241221001323-5994fb8e8146/go.mod h1:/kiDNjIEW+8NaqW2kDyibCQozlAXZWtcT+wCnUF8k5Y=
+github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241225001505-0466fa07abfe h1:jvSFUVuSBUdpAvIhWRPafA84zTvo4s0rL5c5QkwezeE=
+github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241225001505-0466fa07abfe/go.mod h1:/kiDNjIEW+8NaqW2kDyibCQozlAXZWtcT+wCnUF8k5Y=
 github.com/Quizert/room-reservation-system/Libs v0.0.0-20241224235035-99dbf484b6d1 h1:o0Sf50lJIa8oFKA722J4gRRS6nC1R6xv+Ar/IDO2dCQ=
 github.com/Quizert/room-reservation-system/Libs v0.0.0-20241224235035-99dbf484b6d1/go.mod h1:cA+gMEpHBnST+2Idbnlzgy8O6zl2CVFaYcLHspXxHZk=
+github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225001505-0466fa07abfe h1:VGzbQBvbf/WjVswOs8+Eh4690OUOTPpXTkWq+lp1wes=
+github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225001505-0466fa07abfe/go.mod h1:cA+gMEpHBnST+2Idbnlzgy8O6zl2CVFaYcLHspXxHZk=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
