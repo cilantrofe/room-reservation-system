@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 )
 
@@ -21,8 +22,12 @@ func (c *HotelSvcClient) GetRoomsByHotelId(ctx context.Context, req *hotelpb.Get
 }
 
 func NewHotelClient(grpcHost, grpcPort string) (*HotelSvcClient, error) {
-	address := fmt.Sprintf("%s:%s", grpcHost, grpcPort)
-	conn, err := grpc.Dial(address, grpc.WithInsecure()) // Добавить ретраи мб сервис упадет??
+	conn, err := grpc.Dial(
+		fmt.Sprintf("%s:%s", grpcHost, grpcPort),
+		grpc.WithInsecure(),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect: %w", err)
 	}

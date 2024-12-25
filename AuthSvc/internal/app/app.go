@@ -7,10 +7,18 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/config"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/controller"
 	grpcserver "github.com/Quizert/room-reservation-system/AuthSvc/internal/controller/grpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"log"
+
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/storage/postgres"
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -23,10 +31,11 @@ import (
 )
 
 type App struct {
-	server     *http.Server
-	GRPCServer *grpcserver.Server
-	dbPool     *pgxpool.Pool
-	log        *zap.Logger
+	server         *http.Server
+	GRPCServer     *grpcserver.Server
+	dbPool         *pgxpool.Pool
+	log            *zap.Logger
+	tracerProvider *trace.TracerProvider // (1) Храним TracerProvider здесь
 }
 
 func NewApp() *App {
@@ -39,8 +48,34 @@ func NewDatabasePool(ctx context.Context, cfg *config.Config, logger *zap.Logger
 	return pgxpool.Connect(ctx, connString)
 }
 
+// (2) Инициализация TracerProvider (Jaeger)
+func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, error) {
+	exp, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exp),
+		trace.WithResource(resource.NewSchemaless(
+			semconv.ServiceNameKey.String(serviceName),
+		)),
+	)
+
+	// Устанавливаем провайдер глобально, чтобы otelgrpc (и любые другие пакеты) могли брать его по умолчанию
+	otel.SetTracerProvider(tp)
+
+	return tp, nil
+}
+
 func (a *App) ListenGRPCServer() error {
-	grpcServer := grpc.NewServer()
+	// (2) Включаем interceptors, чтобы получать спаны при входящих gRPC-вызовах
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
+		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
+	)
 
 	authpb.RegisterAuthServiceServer(grpcServer, a.GRPCServer)
 
@@ -55,33 +90,39 @@ func (a *App) ListenGRPCServer() error {
 func (a *App) Init(ctx context.Context) error {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		// Тут можно сделать MustLoad ля-ля
-		return fmt.Errorf("myerror initializing zap logger: %v", err)
+		return fmt.Errorf("error initializing zap logger: %v", err)
 	}
 	a.log = logger
 
 	a.log.Info("Loading configuration")
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return fmt.Errorf("myerror loading config: %v", err)
+		return fmt.Errorf("error loading config: %v", err)
 	}
 
 	dbPool, err := NewDatabasePool(ctx, cfg, a.log)
 	if err != nil {
 		return fmt.Errorf("failed to initialize database pool: %w", err)
 	}
-	repo := postgres.NewPostgresRepository(dbPool)
 	a.dbPool = dbPool
 
-	tokenTTLString := cfg.TokenTTl
-	tokenTTL, err := time.ParseDuration(tokenTTLString)
+	tokenTTL, err := time.ParseDuration(cfg.TokenTTl)
 	if err != nil {
-		return fmt.Errorf("myerror parsing duration: %w", err)
-
+		return fmt.Errorf("error parsing duration: %w", err)
 	}
-	secret := cfg.Secret
+	authService := service.NewAuthServiceImpl(
+		postgres.NewPostgresRepository(dbPool),
+		tokenTTL,
+		cfg.Secret,
+		logger,
+	)
 
-	authService := service.NewAuthServiceImpl(repo, tokenTTL, secret, logger)
+	// (1) Инициализируем Jaeger-трейсинг и сохраняем в a.tracerProvider
+	tp, err := InitTracerProvider("AuthSvc", "http://jaeger:14268/api/traces")
+	if err != nil {
+		log.Fatalf("failed to init tracer: %v", err)
+	}
+	a.tracerProvider = tp // сохраняем, чтобы закрыть позже
 
 	authHandler := controller.NewAuthHandler(authService)
 	route := controller.SetupRoutes(authHandler)
@@ -90,7 +131,10 @@ func (a *App) Init(ctx context.Context) error {
 		Addr:    ":" + cfg.HTTPPort,
 		Handler: route,
 	}
+
+	// gRPC сервер
 	a.GRPCServer = grpcserver.NewServer(authService, ":"+cfg.GRPCPort)
+
 	return nil
 }
 
@@ -102,24 +146,27 @@ func (a *App) Start(ctx context.Context) error {
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
+	// Запуск HTTP
 	group.Go(func() error {
 		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			a.log.Error("Error in ListenAndServe", zap.Error(err))
+			a.log.Error("Error in ListenAndServe (HTTP)", zap.Error(err))
 			return fmt.Errorf("failed to serve HTTP server: %w", err)
 		}
 		a.log.Info("HTTP server stopped")
 		return nil
 	})
 
+	// Запуск gRPC
 	group.Go(func() error {
 		if err := a.ListenGRPCServer(); err != nil {
-			a.log.Error("Error in ListenAndServe", zap.Error(err))
+			a.log.Error("Error in ListenAndServe (gRPC)", zap.Error(err))
 			return fmt.Errorf("failed to serve GRPC server: %w", err)
 		}
 		a.log.Info("GRPC server stopped")
 		return nil
 	})
 
+	// Ожидаем сигналов
 	group.Go(func() error {
 		<-groupCtx.Done()
 		return a.Stop(context.Background())
@@ -136,18 +183,26 @@ func (a *App) Start(ctx context.Context) error {
 func (a *App) Stop(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+
 	a.log.Info("Shutting down HTTP server")
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
-		a.log.Error("HTTP server shutdown myerror", zap.Error(err))
+		a.log.Error("HTTP server shutdown error", zap.Error(err))
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 	a.log.Info("HTTP server shutdown gracefully")
 
+	// Закрываем соединение с БД
 	if a.dbPool != nil {
 		a.dbPool.Close()
 		a.log.Info("Database connection closed")
-	} else {
-		a.log.Warn("Database pool is nil, skipping close")
 	}
+
+	// (1) Останавливаем tracer provider
+	if a.tracerProvider != nil {
+		if err := a.tracerProvider.Shutdown(ctx); err != nil {
+			a.log.Error("Error shutting down tracer provider", zap.Error(err))
+		}
+	}
+
 	return nil
 }

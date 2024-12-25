@@ -5,14 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+
 	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/kafka"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/config"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller/handler"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/storage/postgres"
+
 	"github.com/Quizert/room-reservation-system/Libs/metrics"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"net/http"
@@ -23,10 +29,11 @@ import (
 )
 
 type App struct {
-	mainServer   *http.Server
-	metricServer *http.Server
-	dbPool       *pgxpool.Pool
-	log          *zap.Logger
+	mainServer     *http.Server
+	metricServer   *http.Server
+	dbPool         *pgxpool.Pool
+	tracerProvider *trace.TracerProvider // TracerProvider для управления жизненным циклом
+	log            *zap.Logger
 }
 
 func NewApp() *App {
@@ -59,6 +66,20 @@ func NewPaymentClient(cfg *config.Config, logger *zap.Logger) *paymentClient.Cli
 	return paymentClient.NewPaymentSvcClient(cfg.PaymentSvcURL)
 }
 
+func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, error) {
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Jaeger exporter: %w", err)
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exp),
+		trace.WithResource(resource.NewSchemaless(
+			semconv.ServiceNameKey.String(serviceName),
+		)),
+	)
+	return tp, nil
+}
 func (a *App) Init(ctx context.Context) error {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -84,16 +105,25 @@ func (a *App) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize auth client: %w", err)
 	}
+
 	paymentSvcClient := NewPaymentClient(cfg, a.log)
+
 	dbPool, err := NewDatabasePool(ctx, cfg, a.log)
 	if err != nil {
 		return fmt.Errorf("failed to initialize database pool: %w", err)
 	}
-	repo := postgres.NewPostgresRepository(dbPool)
-	a.dbPool = dbPool
 
-	mainService := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, authClient, paymentSvcClient, a.log)
-	bookingHandler := handler.NewBookingHandler(mainService)
+	tracerProvider, err := InitTracerProvider("BookingSvc", "http://jaeger:14268/api/traces")
+	if err != nil {
+		return fmt.Errorf("failed to initialize tracer provider: %w", err)
+	}
+
+	a.tracerProvider = tracerProvider
+	tracer := a.tracerProvider.Tracer("BookingSvc")
+	repo := postgres.NewPostgresRepository(dbPool, tracer)
+	a.dbPool = dbPool
+	mainService := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, authClient, paymentSvcClient, tracer, a.log)
+	bookingHandler := handler.NewBookingHandler(mainService, tracer)
 
 	mainRoute := handler.SetupRoutes(bookingHandler)
 	metricRoute := metrics.SetupMetricsRoute()
@@ -105,6 +135,7 @@ func (a *App) Init(ctx context.Context) error {
 		Addr:    ":" + cfg.HTTPMetricPort,
 		Handler: metricRoute,
 	}
+
 	a.log.Debug("Initialization complete")
 	return nil
 }
@@ -125,6 +156,7 @@ func (a *App) Start(ctx context.Context) error {
 		a.log.Info("HTTP mainServer stopped")
 		return nil
 	})
+
 	group.Go(func() error {
 		if err := a.mainServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.log.Error("Error in ListenAndServe", zap.Error(err))
@@ -148,20 +180,20 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) Stop(ctx context.Context) error {
-	shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	a.log.Info("Shutting down HTTP mainServer")
-	if err := a.mainServer.Shutdown(shutdownCtx); err != nil {
-		a.log.Error("HTTP mainServer shutdown myerror", zap.Error(err))
-		return fmt.Errorf("failed to shutdown HTTP mainServer: %w", err)
-	}
-	a.log.Info("HTTP mainServer shutdown gracefully")
+	if a.mainServer != nil {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
 
-	if a.dbPool != nil {
-		a.dbPool.Close()
-		a.log.Info("Database connection closed")
-	} else {
-		a.log.Warn("Database pool is nil, skipping close")
+		if err := a.mainServer.Shutdown(shutdownCtx); err != nil {
+			a.log.Error("HTTP mainServer shutdown error", zap.Error(err))
+			return fmt.Errorf("failed to shutdown HTTP mainServer: %w", err)
+		}
+	}
+
+	if a.tracerProvider != nil {
+		if err := a.tracerProvider.Shutdown(ctx); err != nil {
+			a.log.Error("Failed to shutdown tracer provider", zap.Error(err))
+		}
 	}
 	return nil
 }
