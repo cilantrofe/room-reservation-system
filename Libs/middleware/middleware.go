@@ -20,9 +20,7 @@ func NewMiddleware(secret string) *Middleware {
 
 func (m *Middleware) Auth(next http.HandlerFunc, clientHotelierAccess bool) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			metrics.RecordMiddlewaresMetrics()
-		}()
+		metrics.RecordMiddlewaresMetrics()
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "Authorization missing", http.StatusUnauthorized)

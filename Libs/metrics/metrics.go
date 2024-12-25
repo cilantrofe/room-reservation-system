@@ -40,14 +40,6 @@ var (
 		},
 		[]string{"operation"}, // Лейбл: тип операции (SELECT, INSERT и т.д.)
 	)
-	// MiddlewaresRequestsTotal Счётчик запросов к мидлаваре
-	MiddlewaresRequestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "middlewares_queries_total",
-			Help: "Total number of middlewares queries executed",
-		},
-		[]string{},
-	)
 )
 
 // RecordHttpMetrics Функция для записи метрик HTTP-запросов
@@ -59,8 +51,4 @@ func RecordHttpMetrics(method, endpoint, status string, duration float64) {
 func RecordDataBaseMetrics(operation string, status string, duration float64) {
 	DbQueriesTotal.WithLabelValues(operation, status).Inc()
 	DbQueryDuration.WithLabelValues(operation).Observe(duration)
-}
-
-func RecordMiddlewaresMetrics() {
-	MiddlewaresRequestsTotal.WithLabelValues().Inc()
 }
