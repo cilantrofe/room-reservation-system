@@ -8,11 +8,14 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/myerror"
+	"go.opentelemetry.io/otel/attribute"
+	_ "go.opentelemetry.io/otel/attribute"
+
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
 	"time"
 )
 
@@ -22,6 +25,7 @@ type BookingServiceImpl struct {
 	hotelSvcClient      HotelClient
 	authSvcClient       AuthSvcClient
 	paymentSystemClient PaymentSystemClient
+	tracer              trace.Tracer
 	log                 *zap.Logger
 }
 
@@ -29,12 +33,31 @@ type AuthSvcClient interface {
 	GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error)
 }
 
-func NewBookingServiceImpl(db Storage, producer MessageProducer, hotelClient HotelClient, authClient AuthSvcClient, paymentClient PaymentSystemClient, logger *zap.Logger) *BookingServiceImpl {
-	return &BookingServiceImpl{storage: db, messageProducer: producer, hotelSvcClient: hotelClient, authSvcClient: authClient, paymentSystemClient: paymentClient, log: logger}
+func NewBookingServiceImpl(
+	db Storage,
+	producer MessageProducer,
+	hotelClient HotelClient,
+	authClient AuthSvcClient,
+	paymentClient PaymentSystemClient,
+	tracer trace.Tracer,
+	logger *zap.Logger,
+) *BookingServiceImpl {
+	return &BookingServiceImpl{
+		storage:             db,
+		messageProducer:     producer,
+		hotelSvcClient:      hotelClient,
+		authSvcClient:       authClient,
+		paymentSystemClient: paymentClient,
+		log:                 logger,
+		tracer:              tracer,
+	}
 }
 
 func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest, user *models.User) error {
+	ctx, span := b.tracer.Start(ctx, "BookingService.CreateBooking")
+	defer span.End()
 	bookingRequest.Amount = bookingRequest.CountOfPeople * bookingRequest.RoomBasePrice
+
 	b.log.With(
 		zap.String("Layer", "service: CreateBooking"),
 		zap.Int("room id", bookingRequest.RoomID),
@@ -52,7 +75,11 @@ func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *
 	booking := bookingRequest.ToBookingInfo(user.UserID)
 
 	bookingID, err := b.storage.CreateBooking(ctx, booking)
+	span.SetAttributes(
+		attribute.String("booking.booking_id", fmt.Sprintf("%d", bookingID)),
+	)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, myerror.ErrBookingAlreadyExists) {
 			b.log.Warn("in service Create Booking", zap.Error(err))
 			return fmt.Errorf("in service Create Booking: %w", myerror.ErrBookingAlreadyExists)
@@ -66,14 +93,19 @@ func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *
 
 	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
 	if err != nil {
+		span.RecordError(err)
+
 		return fmt.Errorf("error in payment request: %w", err)
 	}
 
 	b.log.Info("in service Create Booking end successfully")
+	span.AddEvent("booking_created")
 	return nil
 }
 
 func (b *BookingServiceImpl) GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error) {
+	ctx, span := b.tracer.Start(ctx, "BookingService.CreateBooking")
+	defer span.End()
 	b.log.With(
 		zap.String("Layer", "service: GetBookingsByUserID"),
 		zap.Int("user id", userID),
@@ -81,15 +113,19 @@ func (b *BookingServiceImpl) GetBookingsByUserID(ctx context.Context, userID int
 
 	bookings, err := b.storage.GetBookingsByUserID(ctx, userID)
 	if err != nil {
+		span.RecordError(err)
 		b.log.Error("error in service GetBookingsByHotelID:", zap.Error(err))
 		return nil, fmt.Errorf("error in service GetBookingsByHotelID: %w", err)
 	}
 
 	b.log.Info("in service get bookings by user id end successfully")
+	span.AddEvent("get booking success")
 	return bookings, nil
 }
 
 func (b *BookingServiceImpl) GetBookingsByHotelID(ctx context.Context, hotelID, userID int) ([]*models.BookingInfo, error) {
+	ctx, span := b.tracer.Start(ctx, "BookingService.GetBookingsByHotelID")
+	defer span.End()
 	b.log.With(
 		zap.String("Layer", "service: GetBookingsByHotelID"),
 		zap.Int("user id", userID),
@@ -99,6 +135,7 @@ func (b *BookingServiceImpl) GetBookingsByHotelID(ctx context.Context, hotelID, 
 	req := &hotelpb.GetOwnerIdRequest{Id: int32(hotelID)}
 	response, err := b.hotelSvcClient.GetOwnerIdByHotelId(ctx, req)
 	if err != nil {
+		span.RecordError(err)
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.NotFound {
 			b.log.Warn("error in service gRPC GetBookingsByHotelID:", zap.Error(myerror.ErrHotelNotFound))
@@ -108,18 +145,50 @@ func (b *BookingServiceImpl) GetBookingsByHotelID(ctx context.Context, hotelID, 
 		return nil, fmt.Errorf("error in service GetOwnerIdByHotelId: %w", err)
 	}
 	if response.OwnerId != int32(userID) {
+		span.RecordError(myerror.ErrForbiddenAccess)
 		b.log.Warn("hotelier tries to check forbidden bookings from other hotel!")
 		return nil, fmt.Errorf("user not owned by hotel %w", myerror.ErrForbiddenAccess)
 	}
 
 	bookings, err := b.storage.GetBookingsByHotelID(ctx, hotelID)
 	if err != nil {
+		span.RecordError(err)
+
 		b.log.Error("error in service GetBookingsByHotelID:", zap.Error(err))
 		return nil, fmt.Errorf("error in service GetBookingsByHotelID: %w", err)
 	}
 
 	b.log.Info("in service get bookings by hotel id end successfully")
+	span.AddEvent("get booking success")
 	return bookings, nil
+}
+
+func (b *BookingServiceImpl) GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error) {
+	ctx, span := b.tracer.Start(ctx, "BookingService.GetAvailableRooms")
+	defer span.End()
+
+	request := hotelpb.GetRoomsRequest{HotelId: int32(hotelID)}
+	allRooms, err := b.hotelSvcClient.GetRoomsByHotelId(ctx, &request)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("error in gRPC request GetRoomsByHotelID: %v", err)
+	}
+
+	unavailableRoomsID, err := b.storage.GetUnavailableRoomsByHotelId(ctx, hotelID, startDate, endDate)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("error in db GetUnavailableRoomsByHotelId: %v", err)
+	}
+
+	availableRooms := make([]*hotelpb.Room, 0)
+	for _, room := range allRooms.Rooms {
+		if _, ok := unavailableRoomsID[int(room.Id)]; !ok {
+			availableRooms = append(availableRooms, room)
+		}
+	}
+
+	span.AddEvent("get available rooms success")
+	return availableRooms, nil
 }
 
 func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingStatus string, bookingMessage *models.BookingMessage) error {
@@ -160,6 +229,7 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingSta
 			return fmt.Errorf("error in service GetOwnerIdByHotelId: %w", err)
 		}
 		authReq := &authpb.GetHotelierRequest{OwnerID: hotelResponse.OwnerId}
+
 		authResponse, err := b.authSvcClient.GetHotelierInformation(ctx, authReq)
 		if err != nil {
 			st, ok := status.FromError(err)
@@ -188,25 +258,4 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingSta
 	}
 	b.log.Info("in service update booking status end successfully", zap.String("status", BookingStatus))
 	return nil
-}
-
-func (b *BookingServiceImpl) GetAvailableRooms(ctx context.Context, hotelID int, startDate, endDate time.Time) ([]*hotelpb.Room, error) {
-	request := hotelpb.GetRoomsRequest{HotelId: int32(hotelID)}
-	allRooms, err := b.hotelSvcClient.GetRoomsByHotelId(ctx, &request)
-	if err != nil {
-		return nil, fmt.Errorf("error in gRPC request GetRoomsByHotelID: %v", err)
-	}
-	log.Println("ALL ROOMS:", allRooms)
-	unavailableRoomsID, err := b.storage.GetUnavailableRoomsByHotelId(ctx, hotelID, startDate, endDate)
-	if err != nil {
-		return nil, fmt.Errorf("error in db GetUnavailableRoomsByHotelId: %v", err)
-	}
-	log.Println("UNAVAILABLE ROOMS:", unavailableRoomsID)
-	availableRooms := make([]*hotelpb.Room, 0)
-	for _, room := range allRooms.Rooms {
-		if _, ok := unavailableRoomsID[int(room.Id)]; !ok {
-			availableRooms = append(availableRooms, room)
-		}
-	}
-	return availableRooms, nil
-}
+} //ТУТ И НИЖЕ ТРАССИРОВКА
