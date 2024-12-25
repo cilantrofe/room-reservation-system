@@ -6,6 +6,8 @@ github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241225001505-0466fa
 github.com/Quizert/room-reservation-system/HotelSvc v0.0.0-20241225001505-0466fa07abfe/go.mod h1:/kiDNjIEW+8NaqW2kDyibCQozlAXZWtcT+wCnUF8k5Y=
 github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225012223-facc3e6aaa89 h1:TlN3FEbXMKwFF2xG5hHYxuA9wVsl6NUVR0W6C8vGTTg=
 github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225012223-facc3e6aaa89/go.mod h1:FzDPtxqcgaIlXvLBe8NngJVEaXVz1QROfQbwLoszClk=
+github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225171851-8d361e4fe8b4 h1:EFMVJfHMzH95m6J9rE6OBvxTRX9elu4MYmXhX/zFswY=
+github.com/Quizert/room-reservation-system/Libs v0.0.0-20241225171851-8d361e4fe8b4/go.mod h1:FzDPtxqcgaIlXvLBe8NngJVEaXVz1QROfQbwLoszClk=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

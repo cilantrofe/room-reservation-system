@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"github.com/Quizert/room-reservation-system/Libs/metrics"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
 	"net/http"
@@ -20,7 +19,6 @@ func NewMiddleware(secret string) *Middleware {
 
 func (m *Middleware) Auth(next http.HandlerFunc, clientHotelierAccess bool) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		metrics.RecordMiddlewaresMetrics()
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "Authorization missing", http.StatusUnauthorized)
