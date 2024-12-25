@@ -140,7 +140,6 @@ services:
     environment:
       KAFKA_BROKER: kafka:9092
       TELEGRAM_TOKEN: "${TELEGRAM_TOKEN}"
-      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}" #TODO: будет удалено, вместо этого просто будет подставляться chat_id из json
     env_file:
       - .env
     networks:
@@ -164,7 +163,6 @@ services:
       - "9090:9090"
     networks:
       - app-network
-      -
   grafana:
     image: grafana/grafana:latest
     ports:

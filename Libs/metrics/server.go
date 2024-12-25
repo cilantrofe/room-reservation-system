@@ -7,7 +7,7 @@ import (
 )
 
 func SetupMetricsRoute() *http.ServeMux {
-	prometheus.MustRegister(HttpRequestsTotal, HttpRequestDuration, DbQueriesTotal, DbQueryDuration)
+	prometheus.MustRegister(HttpRequestsTotal, HttpRequestDuration, DbQueriesTotal, DbQueryDuration, MiddlewaresRequestsTotal)
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	return mux
