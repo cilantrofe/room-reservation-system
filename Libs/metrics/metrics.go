@@ -53,7 +53,6 @@ var (
 // RecordHttpMetrics Функция для записи метрик HTTP-запросов
 func RecordHttpMetrics(method, endpoint, status string, duration float64) {
 	HttpRequestsTotal.WithLabelValues(method, endpoint, status).Inc()
-
 	HttpRequestDuration.WithLabelValues(method, endpoint).Observe(duration)
 }
 
