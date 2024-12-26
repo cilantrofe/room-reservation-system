@@ -9,6 +9,7 @@ import (
 
 type HotelHandler struct {
 	hotelService *service.HotelService
+	roomService *service.RoomService
 }
 
 // GetHotels - обработчик для получения списка отелей
@@ -61,6 +62,41 @@ func (h *HotelHandler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *HotelHandler) AddRoom(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		var room models.Room
+		if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+			http.Error(w, "Invalid input", http.StatusBadRequest)
+			return
+		}
+		if err := h.roomService.AddRoom(room); err != nil {
+			http.Error(w, "Failed to add room", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *HotelHandler) AddRoomType(w http.ResponseWriter, r *http.Request) {
+	if (r.Method == "POST") {
+		var roomType models.RoomType
+		if err := json.NewDecoder(r.Body).Decode(&roomType); err != nil {
+			http.Error(w, "Invalid input", http.StatusBadRequest)
+			return
+		}
+		if err := h.roomService.AddRoomType(roomType); err != nil {
+			http.Error(w, "Failed to add room type", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}

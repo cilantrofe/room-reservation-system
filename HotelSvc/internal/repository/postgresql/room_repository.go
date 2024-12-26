@@ -2,7 +2,7 @@ package postgresql
 
 import (
 	"database/sql"
-
+	"github.com/Quizert/room-reservation-system/HotelSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 )
 
@@ -31,4 +31,20 @@ func (repo *PostgresRoomRepository) GetRoomsByHotelId(id int) ([]*hotelpb.Room, 
 	}
 	return rooms, rows.Err()
 
+}
+
+func (repo *PostgresRoomRepository) AddRoom(room models.Room) error {
+	_, err := repo.db.Exec(
+		"INSERT INTO rooms (id, HotelId, RoomTypeId, Number) VALUES ($1, $2, $3, $4)",
+		room.ID, room.HotelID, room.RoomTypeID, room.Number,
+	)
+	return err
+}
+
+func (repo *PostgresRoomRepository) AddRoomType(roomType models.RoomType) error {
+	_, err := repo.db.Exec(
+		"INSERT INTO room_type (id, Name, Description, BasePrice) VALUES ($1, $2, $3, $4)",
+		roomType.ID, roomType.Name, roomType.Description, roomType.BasePrice,
+	)
+	return err
 }
