@@ -93,7 +93,7 @@ func (h *HotelHandler) AddRoomType(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.roomService.AddRoomType(roomType); err != nil {
-			http.Error(w, "Failed to add room type", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusCreated)

@@ -9,9 +9,7 @@ CREATE TABLE IF NOT EXISTS room_type (
     ID SERIAL PRIMARY KEY,
     Name TEXT NOT NULL,
     Description TEXT,
-    BasePrice INT NOT NULL,
-    Capacity INT NOT NULL
-
+    BasePrice INT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Rooms (

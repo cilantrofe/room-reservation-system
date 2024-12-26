@@ -59,8 +59,8 @@ func (repo *PostgresRoomRepository) AddRoom(room models.Room) error {
 
 func (repo *PostgresRoomRepository) AddRoomType(roomType models.RoomType) error {
 	_, err := repo.db.Exec(
-		"INSERT INTO room_type (id, Name, Description, BasePrice) VALUES ($1, $2, $3, $4)",
-		roomType.ID, roomType.Name, roomType.Description, roomType.BasePrice,
+		"INSERT INTO room_type (Name, Description, BasePrice) VALUES ($1, $2, $3)",
+		roomType.Name, roomType.Description, roomType.BasePrice,
 	)
 	return err
 }
