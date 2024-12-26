@@ -54,7 +54,7 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		if err := startHTTPServer(hotelService); err != nil {
+		if err := startHTTPServer(hotelService, roomService); err != nil {
 			log.Fatalf("Failed to start HTTP server: %v", err)
 		}
 	}()
@@ -93,9 +93,9 @@ func initDB() (*sql.DB, error) {
 }
 
 // startHTTPServer запускает HTTP сервер для обработки REST-запросов
-func startHTTPServer(hotelService *service2.HotelService) error {
+func startHTTPServer(hotelService *service2.HotelService, roomService *service2.RoomService) error {
 	mux := http.NewServeMux()
-	handler.RegisterHotelRoutes(mux, hotelService)
+	handler.RegisterHotelRoutes(mux, hotelService, roomService)
 
 	addr := ":" + os.Getenv("HOTEL_HTTP_PORT")
 	log.Printf("Starting HTTP server on %s...", addr)
