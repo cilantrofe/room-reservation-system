@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"log"
 	"time"
 )
 
@@ -170,7 +171,7 @@ func (b *BookingServiceImpl) GetAvailableRooms(ctx context.Context, hotelID int,
 		span.RecordError(err)
 		return nil, fmt.Errorf("error in gRPC request GetRoomsByHotelID: %v", err)
 	}
-
+	log.Println("AFIKJOAFOIJAFKJL:ALK:FJALKFAL:KJFKAJLFJKLAJFKLAFAKLFJKLA:FJKA\n", allRooms)
 	unavailableRoomsID, err := b.storage.GetUnavailableRoomsByHotelId(ctx, hotelID, startDate, endDate)
 	if err != nil {
 		span.RecordError(err)
