@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/grpc"
+	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	paymentClient "github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/http/paymentsvc"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/clients/kafka"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/config"
-	"github.com/Quizert/room-reservation-system/BookingSvc/internal/controller/handler"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/service"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/storage/postgres"
 
@@ -67,10 +69,14 @@ func NewPaymentClient(cfg *config.Config, logger *zap.Logger) *paymentClient.Cli
 }
 
 func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, error) {
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
+	exp, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Jaeger exporter: %w", err)
+		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
 	}
+
+	fmt.Println("Jaeger exporter initialized successfully")
 
 	tp := trace.NewTracerProvider(
 		trace.WithBatcher(exp),
@@ -78,6 +84,12 @@ func InitTracerProvider(serviceName, endpoint string) (*trace.TracerProvider, er
 			semconv.ServiceNameKey.String(serviceName),
 		)),
 	)
+
+	// Устанавливаем провайдер глобально
+	otel.SetTracerProvider(tp)
+
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
 	return tp, nil
 }
 func (a *App) Init(ctx context.Context) error {
@@ -123,9 +135,9 @@ func (a *App) Init(ctx context.Context) error {
 	repo := postgres.NewPostgresRepository(dbPool, tracer)
 	a.dbPool = dbPool
 	mainService := service.NewBookingServiceImpl(repo, kafkaProducer, hotelClient, authClient, paymentSvcClient, tracer, a.log)
-	bookingHandler := handler.NewBookingHandler(mainService, tracer)
+	bookingHandler := controller.NewBookingHandler(mainService, tracer)
 
-	mainRoute := handler.SetupRoutes(bookingHandler)
+	mainRoute := controller.SetupRoutes(bookingHandler)
 	metricRoute := metrics.SetupMetricsRoute()
 	a.mainServer = &http.Server{
 		Addr:    ":" + cfg.HTTPPort,

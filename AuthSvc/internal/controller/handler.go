@@ -29,7 +29,7 @@ func NewAuthHandler(authService AuthService, trace trace.Tracer) *AuthHandler {
 }
 
 func (a *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
-	ctx, span := a.tracer.Start(r.Context(), "Handler.CreateBooking")
+	ctx, span := a.tracer.Start(r.Context(), "Handler.RegisterUser")
 	defer span.End()
 
 	start := time.Now()
@@ -65,15 +65,18 @@ func (a *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
+	ctx, span := a.tracer.Start(r.Context(), "Handler.LoginUser")
+	defer span.End()
+
 	start := time.Now()
 	status := http.StatusOK
 	defer func() {
 		duration := time.Since(start).Seconds()
 		metrics.RecordHttpMetrics(r.Method, "/auth/login", http.StatusText(status), duration)
 	}()
-	ctx := r.Context()
 	var user models.User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		span.RecordError(err)
 		status = http.StatusBadRequest
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
@@ -81,6 +84,7 @@ func (a *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	token, err := a.authService.LoginUser(ctx, &user)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, myerror.ErrInvalidCredentials) {
 			status = http.StatusNotFound
 			http.Error(w, myerror.ErrInvalidCredentials.Error(), http.StatusNotFound)
@@ -96,8 +100,11 @@ func (a *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(jwtResponse)
 	if err != nil {
+		span.RecordError(err)
+
 		status = http.StatusInternalServerError
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	span.AddEvent("Login user success")
 }

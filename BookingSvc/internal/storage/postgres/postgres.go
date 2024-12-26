@@ -6,6 +6,7 @@ import (
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/BookingSvc/internal/myerror"
 	"github.com/Quizert/room-reservation-system/Libs/metrics"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.opentelemetry.io/otel/trace"
 	"time"
@@ -34,7 +35,9 @@ func (r *Repository) CreateBooking(ctx context.Context, booking *models.BookingI
 		metrics.RecordDataBaseMetrics("Create booking", status, duration)
 	}()
 
-	tx, err := r.db.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable, // Уровень изоляции SERIALIZABLE
+	})
 	if err != nil {
 		span.RecordError(err)
 		status = "failed"
