@@ -23,6 +23,7 @@ func NewPaymentHandler(PaymentService *service.PaymentService) *PaymentHandler {
 func (p *PaymentHandler) ProcessPayment(w http.ResponseWriter, r *http.Request) {
 	var paymentRequest *models.PaymentRequest
 	err := json.NewDecoder(r.Body).Decode(&paymentRequest)
+	log.Println(paymentRequest)
 	if err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return

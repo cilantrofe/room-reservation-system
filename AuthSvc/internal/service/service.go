@@ -8,6 +8,7 @@ import (
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/models"
 	"github.com/Quizert/room-reservation-system/AuthSvc/internal/myerror"
 	"github.com/Quizert/room-reservation-system/AuthSvc/pkj/authpb"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"time"
@@ -17,19 +18,24 @@ type AuthServiceImpl struct {
 	storage  Storage
 	tokenTTl time.Duration
 	secret   string
+	tracer   trace.Tracer
 	log      *zap.Logger
 }
 
-func NewAuthServiceImpl(storage Storage, tokenTTl time.Duration, secret string, log *zap.Logger) *AuthServiceImpl {
+func NewAuthServiceImpl(storage Storage, tokenTTl time.Duration, secret string, trace trace.Tracer, log *zap.Logger) *AuthServiceImpl {
 	return &AuthServiceImpl{
 		storage:  storage,
 		tokenTTl: tokenTTl,
 		secret:   secret,
 		log:      log,
+		tracer:   trace,
 	}
 }
 
 func (a *AuthServiceImpl) RegisterUser(ctx context.Context, user *models.User) (int, error) {
+	ctx, span := a.tracer.Start(ctx, "AuthService.RegisterUser")
+	defer span.End()
+
 	a.log.With(
 		zap.String("Layer", "service: RegisterUser"),
 		zap.String("username", user.Username),
@@ -38,6 +44,7 @@ func (a *AuthServiceImpl) RegisterUser(ctx context.Context, user *models.User) (
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.MinCost)
 	if err != nil {
+		span.RecordError(err)
 		a.log.Error("failed to hash password", zap.Error(err))
 		return 0, fmt.Errorf("%s: %w", "auth.RegisterUser", err)
 	}
@@ -46,6 +53,7 @@ func (a *AuthServiceImpl) RegisterUser(ctx context.Context, user *models.User) (
 
 	id, err := a.storage.RegisterUser(ctx, user)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, myerror.ErrUserExists) {
 			a.log.Warn("user already exists", zap.Error(err))
 			return 0, fmt.Errorf("%s: %w", "auth.RegisterUser", myerror.ErrUserExists)
@@ -54,11 +62,14 @@ func (a *AuthServiceImpl) RegisterUser(ctx context.Context, user *models.User) (
 
 		return 0, fmt.Errorf("%s: %w", "auth.RegisterUser", err)
 	}
+	span.AddEvent("user created")
 	return id, nil
 
 }
 
 func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (string, error) {
+	ctx, span := a.tracer.Start(ctx, "AuthService.LoginUser")
+	defer span.End()
 	a.log.With(
 		zap.String("Layer", "Auth.RegisterUser"),
 		zap.String("username", user.Username),
@@ -67,6 +78,7 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 
 	UserExist, err := a.storage.LoginUser(ctx, user.ChatID)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, myerror.ErrUserNotFound) {
 			a.log.Warn("user not found", zap.Error(err))
 			return "", fmt.Errorf("%s: %w", "auth.LoginUser", myerror.ErrInvalidCredentials)
@@ -77,6 +89,7 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(UserExist.Password), []byte(user.Password)); err != nil {
+		span.RecordError(err)
 		a.log.Warn("invalid credentials", zap.Error(err))
 
 		return "", fmt.Errorf("%s: %w", "auth.LoginUser", myerror.ErrInvalidCredentials)
@@ -84,10 +97,11 @@ func (a *AuthServiceImpl) LoginUser(ctx context.Context, user *models.User) (str
 
 	token, err := jwt.NewToken(UserExist, a.secret, a.tokenTTl)
 	if err != nil {
+		span.RecordError(err)
 		a.log.Error("failed to generate token", zap.Error(err))
 		return "", fmt.Errorf("%s: %w", "auth.LoginUser", err)
 	}
-
+	span.AddEvent("token generated")
 	return token, nil
 }
 
@@ -110,6 +124,8 @@ func (a *AuthServiceImpl) IsHotelier(ctx context.Context, userID int) (bool, err
 }
 
 func (a *AuthServiceImpl) GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error) {
+	ctx, span := a.tracer.Start(ctx, "AuthService.GetHotelierInformation")
+	defer span.End()
 	response, err := a.storage.GetHotelierInformation(ctx, request)
 	if err != nil {
 		if errors.Is(err, myerror.ErrUserNotFound) {

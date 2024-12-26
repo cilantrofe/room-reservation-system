@@ -114,12 +114,6 @@ func (a *App) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error parsing duration: %w", err)
 	}
-	authService := service.NewAuthServiceImpl(
-		postgres.NewPostgresRepository(dbPool),
-		tokenTTL,
-		cfg.Secret,
-		logger,
-	)
 
 	// (1) Инициализируем Jaeger-трейсинг и сохраняем в a.tracerProvider
 	tp, err := InitTracerProvider("AuthSvc", "http://jaeger:14268/api/traces")
@@ -129,6 +123,13 @@ func (a *App) Init(ctx context.Context) error {
 	a.tracerProvider = tp // сохраняем, чтобы закрыть позже
 
 	tracer := a.tracerProvider.Tracer("AuthSvc")
+	authService := service.NewAuthServiceImpl(
+		postgres.NewPostgresRepository(dbPool, tracer),
+		tokenTTL,
+		cfg.Secret,
+		tracer,
+		logger,
+	)
 	authHandler := controller.NewAuthHandler(authService, tracer)
 	route := controller.SetupRoutes(authHandler)
 

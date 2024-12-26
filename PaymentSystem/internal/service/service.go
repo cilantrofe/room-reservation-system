@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Quizert/room-reservation-system/PaymentSystem/internal/models"
+	"log"
 	"net/http"
 	"time"
 )
@@ -30,6 +31,7 @@ func (p *PaymentService) sendWebHook(ctx context.Context, url string, paymentRes
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.client.Do(req)
+	log.Println(string(data), "ADASDASDKLASFKOL:ASJFOLIKASFJHIKOPASFJKLASJKO")
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}

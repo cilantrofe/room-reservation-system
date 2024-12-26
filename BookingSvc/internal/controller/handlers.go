@@ -1,4 +1,4 @@
-package handler
+package controller
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source=handlers.go -destination=../mocks/service_mock.go -package=mocks
 type BookingService interface {
 	CreateBooking(ctx context.Context, bookingRequest *models.BookingRequest, user *models.User) error
 	GetBookingsByUserID(ctx context.Context, userID int) ([]*models.BookingInfo, error)
@@ -65,7 +66,7 @@ func (b *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&bookingRequest); err != nil {
 		status = http.StatusBadRequest
 		span.RecordError(err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
@@ -234,6 +235,7 @@ func (b *BookingHandler) HandlePaymentWebHook(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	log.Println(paymentResponse.MetaData)
 	err := b.bookingService.UpdateBookingStatus(ctx, paymentResponse.Status, paymentResponse.MetaData)
 
 	switch paymentResponse.Status {

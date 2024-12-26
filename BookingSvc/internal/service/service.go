@@ -28,10 +28,6 @@ type BookingServiceImpl struct {
 	log                 *zap.Logger
 }
 
-type AuthSvcClient interface {
-	GetHotelierInformation(ctx context.Context, request *authpb.GetHotelierRequest) (*authpb.GetHotelierResponse, error)
-}
-
 func NewBookingServiceImpl(
 	db Storage,
 	producer MessageProducer,
@@ -87,7 +83,9 @@ func (b *BookingServiceImpl) CreateBooking(ctx context.Context, bookingRequest *
 		return fmt.Errorf("in service Create Booking: %w", err)
 	}
 
-	bookingMessage := bookingRequest.ToBookingMessage(bookingID, user.Username, user.ChatID)
+	startDateStr := bookingRequest.StartDate.Format("2006-02-01 15")
+	endDateStr := bookingRequest.EndDate.Format("2006-02-01 15")
+	bookingMessage := bookingRequest.ToBookingMessage(bookingID, user.Username, user.ChatID, startDateStr, endDateStr)
 	paymentRequest := models.ToPaymentRequest(bookingMessage, bookingRequest.CardNumber, bookingRequest.Amount)
 
 	err = b.paymentSystemClient.CreatePaymentRequest(ctx, paymentRequest)
@@ -242,8 +240,7 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingSta
 			return fmt.Errorf("error in service GetOwnerIdByHotelId: %w", err)
 		}
 
-		hotelierMessage := bookingMessage.ToHotelierMessage(authResponse.Username, authResponse.ChatID)
-
+		hotelierMessage := bookingMessage.ToHotelierMessage(bookingMessage.Username, authResponse.ChatID)
 		kafkaHotelierMessage, err := json.Marshal(hotelierMessage)
 		if err != nil {
 			b.log.Error("error in service UpdateBookingStatus", zap.Error(err))
@@ -259,4 +256,4 @@ func (b *BookingServiceImpl) UpdateBookingStatus(ctx context.Context, BookingSta
 	}
 	b.log.Info("in service update booking status end successfully", zap.String("status", BookingStatus))
 	return nil
-} //ТУТ И НИЖЕ ТРАССИРОВКА
+}
