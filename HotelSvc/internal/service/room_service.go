@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"github.com/Quizert/room-reservation-system/HotelSvc/api/grpc/hotelpb"
 	"github.com/Quizert/room-reservation-system/HotelSvc/internal/models"
 )
@@ -28,7 +29,7 @@ func (s *RoomService) GetRoomsByHotelId(id int) ([]*hotelpb.Room, error) {
 	return rooms, err
 }
 
-func (s *RoomService) AddRoom(room models.Room) error {
+func (s *RoomService) AddRoom(ctx context.Context, room models.Room) error {
 	return s.roomRepo.AddRoom(room)
 }
 

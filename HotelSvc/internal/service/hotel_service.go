@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"github.com/Quizert/room-reservation-system/HotelSvc/internal/models"
 )
@@ -40,14 +41,18 @@ func (s *HotelService) AddHotel(hotel models.Hotel) error {
 }
 
 // UpdateHotel обновляет информацию об отеле.
-func (s *HotelService) UpdateHotel(hotel models.Hotel) error {
+func (s *HotelService) UpdateHotel(ctx context.Context, hotel models.Hotel) error {
 	// Проверка, существует ли отель
 	existingHotel, err := s.hotelRepo.GetHotelByID(hotel.Id)
+	ownerID := ctx.Value("user_id").(int)
 	if err != nil {
 		return err
 	}
 	if existingHotel == nil {
 		return errors.New("hotel not found")
+	}
+	if ownerID != existingHotel.OwnerId {
+		return errors.New("you are not the owner of the hotel")
 	}
 
 	return s.hotelRepo.UpdateHotel(hotel)

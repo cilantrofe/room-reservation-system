@@ -16,9 +16,11 @@ message GetRoomsRequest {
 message Room {
   int32 id = 1;
   int32 hotel_id = 2;
-  int32 room_type_id = 3;
-  int32 number = 4;
-  int32 cost = 5;
+  string description = 3;
+  string base_price = 4;
+  int32 number = 5;
+  int32 cost = 6;
+  int32 room_type_id = 7;
 }
 
 message GetRoomsResponse {

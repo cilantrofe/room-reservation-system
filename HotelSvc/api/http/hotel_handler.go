@@ -9,7 +9,7 @@ import (
 
 type HotelHandler struct {
 	hotelService *service.HotelService
-	roomService *service.RoomService
+	roomService  *service.RoomService
 }
 
 // GetHotels - обработчик для получения списка отелей
@@ -57,7 +57,7 @@ func (h *HotelHandler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := h.hotelService.UpdateHotel(hotel); err != nil {
+		if err := h.hotelService.UpdateHotel(r.Context(), hotel); err != nil {
 			http.Error(w, "Failed to update hotel", http.StatusInternalServerError)
 			return
 		}
@@ -74,19 +74,19 @@ func (h *HotelHandler) AddRoom(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid input", http.StatusBadRequest)
 			return
 		}
-		if err := h.roomService.AddRoom(room); err != nil {
-			http.Error(w, "Failed to add room", http.StatusInternalServerError)
+		if err := h.roomService.AddRoom(r.Context(), room); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		
+
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
 func (h *HotelHandler) AddRoomType(w http.ResponseWriter, r *http.Request) {
-	if (r.Method == "POST") {
+	if r.Method == "POST" {
 		var roomType models.RoomType
 		if err := json.NewDecoder(r.Body).Decode(&roomType); err != nil {
 			http.Error(w, "Invalid input", http.StatusBadRequest)
